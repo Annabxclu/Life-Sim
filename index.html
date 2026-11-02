@@ -92,6 +92,10 @@ input,select{font:inherit;font-weight:700;padding:10px;border:2px solid var(--li
 .calc.past{opacity:.45}
 .cald{font-weight:900}
 .cali{font-size:13px;line-height:1.15;word-break:break-all}
+.trow{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px}
+.tcard{flex:0 0 auto;min-width:96px;max-width:132px;background:var(--card);border-radius:14px;padding:8px;text-align:center;cursor:pointer;box-shadow:0 1px 0 var(--line),0 3px 10px var(--shadow)}
+.tcard.root{outline:2px solid var(--acc)}
+.tcard.dead{opacity:.6}
 .logline{font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
 .logline b{color:var(--mut);font-size:11px;display:block}
 
@@ -421,7 +425,7 @@ function itemActions(it){const d=ITEMS[it.id],t=d.tier;const _n=newItemActions(i
  }return[]}
 function bedActs(t){const h=hour();const until=(h>=19||h<5)?((24+7-h)%24)*60-(state.time%60):480;
  const a=[{n:h>=19||h<5?'Sleep until morning':'Sleep (8 hrs)',i:'😴',mins:until,needs:{energy:100,fun:3*t},min:1,msg:'slept'+(t>=3?' like a baby on the memory foam':'')},{n:'Nap (1.5 hrs)',i:'💤',mins:90,needs:{energy:25+6*t},min:1},{n:'Relax in bed',i:'😌',mins:30,needs:{fun:8,energy:6}}];
- a.push({n:'Try for a baby 💕',i:'👶',mins:45,needs:{fun:20,social:20},min:4,req:()=>{const s=active(),p=state.family.find(x=>x.id===s.partnerId);return p&&atHouse(p)&&stg(p)>=4&&stg(s)<=5&&!isHotel()&&state.family.length<8},why:'Needs your partner at home (both adults)',after:s=>{const p=state.family.find(x=>x.id===s.partnerId);if(Math.random()<.5){const g=R(['f','m']);const b=newSim(g==='f'?R(FN_F):R(FN_M),g,0,'Child');b.tone=(Math.random()<.5?s:p).tone||0;b.needs={hunger:90,energy:90,hygiene:90,bladder:90,fun:80,social:80};[s,p].forEach(x=>{x.rels[b.id]={f:80,r:0};b.rels[x.id]={f:80,r:0}});state.family.push(b);return `🎉 It's a baby! Welcome ${b.name} to the family! (rename in Family tab)`}return `${s.name} and ${p.name} had some quality time 💕 (no baby this time)`}});
+ a.push({n:'Try for a baby 💕',i:'👶',mins:45,needs:{fun:20,social:20},min:4,req:()=>{const s=active(),p=state.family.find(x=>x.id===s.partnerId);return p&&atHouse(p)&&stg(p)>=4&&stg(s)<=5&&!isHotel()&&state.family.length<8},why:'Needs your partner at home (both adults)',after:s=>{const p=state.family.find(x=>x.id===s.partnerId);if(Math.random()<.5){const g=R(['f','m']);const b=newSim(g==='f'?R(FN_F):R(FN_M),g,0,'Child');b.tone=(Math.random()<.5?s:p).tone||0;b.parents=[s.id,p.id];b.needs={hunger:90,energy:90,hygiene:90,bladder:90,fun:80,social:80};[s,p].forEach(x=>{x.rels[b.id]={f:80,r:0};b.rels[x.id]={f:80,r:0}});state.family.push(b);return `🎉 It's a baby! Welcome ${b.name} to the family! (rename in Family tab)`}return `${s.name} and ${p.name} had some quality time 💕 (no baby this time)`}});
  return a}
 function takeoutMenu(label){return Object.entries(TAKEOUT).map(([cat,c])=>({n:cat,i:c.i,menu:()=>c.r.map(([n,p,h])=>({n,i:c.i,right:'›',sub:`+${h} 🍔 · ${fmt$(p)} each`,menu:()=>{const eaters=famHome().filter(x=>stg(x)>=1);return[{n:'Just for me',i:'🙋',cost:p,mins:40,needs:{hunger:h,fun:5},msg:`ate ${n} from ${label.toLowerCase()}`},{n:`Everyone at home (${eaters.length})`,i:'👪',cost:p*eaters.length,mins:40,after:s=>{eaters.forEach(x=>applyNeeds(x,{hunger:h,fun:5,social:5}));return `The family enjoyed ${n} 🍽️`}}]}}))}))}
 function tvMenu(t){const b=(t-1)*4;return[{n:'Comedy',i:'😂',mins:60,needs:{fun:18+b,energy:3}},{n:'Cooking show',i:'👩‍🍳',mins:60,needs:{fun:10+b},skills:{cooking:.4}},{n:'Sports',i:'🏈',mins:60,needs:{fun:16+b},skills:{fitness:.1}},{n:'Documentary',i:'🦁',mins:60,needs:{fun:9+b},skills:{logic:.4}},{n:'Romance drama',i:'💘',mins:60,needs:{fun:15+b},skills:{charisma:.2}},{n:'Cartoons',i:'🐭',mins:45,needs:{fun:22+b},min:1,max:3}]}
@@ -481,7 +485,7 @@ function doTalk(pid,cat,n,fd,minF,rd,minR,special){const a=active(),p=findPerson
  if(!isNpc(pid)&&state.family.includes(p)){const r2=rel(p,a.id);r2.f=r.f;r2.r=r.r;applyNeeds(p,{social:8})}
  return msg});closeSheet();toast(`💬 ${a.name} is talking to ${p.name}…`);save();render()}
 function moveIn(npc,role,partner){state.roommates=(state.roommates||[]).filter(x=>x!==npc);if(npc.partnerId&&isNpc(npc.partnerId)){const o=findPerson(npc.partnerId);if(o&&o.partnerId===npc.id){o.partnerId=null;o.married=false}}leaveFam(npc);
- const s=newSim(npc.name,npc.g,npc.age,role);s.id=npc.id.replace(/^n/,'s');s.traits=traitsOf(npc).slice(0,3);s.tone=npc.tone||0;
+ const s=newSim(npc.name,npc.g,npc.age,role);s.id=npc.id.replace(/^n/,'s');s.traits=traitsOf(npc).slice(0,3);s.tone=npc.tone||0;s.parents=(npc.parents||[]).slice();
  state.family.forEach(m=>{if(m.rels[npc.id]){m.rels[s.id]=m.rels[npc.id];delete m.rels[npc.id];s.rels[m.id]={...m.rels[s.id]}}else{m.rels[s.id]={f:20,r:0};s.rels[m.id]={f:20,r:0}}});
  if(partner){partner.partnerId=s.id;s.partnerId=partner.id;s.married=partner.married=true}
  s.loc={type:'home'};state.family.push(s);if(!partner)toast(`🏡 ${s.name} moved in as a roommate!`);log(`${s.name} moved in`)}
@@ -885,7 +889,7 @@ function personSub(n,s){const f=famOf(n);const p=[stageName(n.age)];if(npcStatus
 function billsAmount(){if(!state.home)return 0;const base=state.home.rent?state.home.rent:Math.round(HOMES[state.home.id].p*.012);return Math.round(base+itemsValue()*.01+state.cars.length*25)}
 function lotCost(l){const H=HOMES[l.home];return H.apt?H.deposit:H.p}
 function currentCredit(){if(!state.home)return 0;const H=HOMES[state.home.id];return H.apt?H.deposit:Math.round(H.p*.8)}
-function claimLot(wid,l){const H=HOMES[l.home];state.home=makeHouse(H,{id:l.home,lotId:l.id,addr:lotAddr(l),rent:H.rent||0});l.occ='player';state.homeWorld=wid;state.world=wid;state.welcome={at:state.time+90,wid}}
+function claimLot(wid,l){const H=HOMES[l.home];state.home=makeHouse(H,{id:l.home,lotId:l.id,addr:lotAddr(l),rent:H.rent||0});l.occ='player';state.homeWorld=wid;state.world=wid;state.welcome={at:state.time+90,wid};if(!state.tree){deriveParents();refreshTree()}}
 function moveHome(lotId,wid=state.world){const l=lotById(wid,lotId);if(!l||l.occ){toast('Someone already lives there');return}const net=lotCost(l)-currentCredit()+moveFee(wid);if(state.money<net){toast('Not enough money 💸');return}
  state.money-=net;if(state.home){state.home.rooms.forEach(r=>state.inv.push(...r.items));const ol=state.home.lotId&&lotById(state.homeWorld,state.home.lotId);if(ol)ol.occ=null}
  if((state.roommates||[]).length){state.roommates.slice().forEach(evictRoommate);log('🔑 Your roommates found new places to live')}claimLot(wid,l);Object.keys(QUEUE).forEach(k=>delete QUEUE[k]);state.hotel=null;state.family.forEach(s=>{s.loc={type:'home'};s.busy=null});closeSheet();tab='home';const m=`🚚 Moved into ${lotAddr(l)} in ${WORLDS[wid].n}!${state.inv.length?' Old furniture is in your inventory.':''}`;log(m);toast(m);save();render()}
@@ -979,20 +983,20 @@ function queueBox(s){const q=QUEUE[s.id];if(!q||!q.length)return null;return el(
 
 /* ============ death ============ */
 const deathsOn=()=>state.deaths!==false;
-function killSim(s,cause){const i=state.family.indexOf(s);if(i<0)return;state.family.splice(i,1);delete QUEUE[s.id];delete BUSYFN[s.id];
+function killSim(s,cause){const i=state.family.indexOf(s);if(i<0)return;treeDeath(s.id,cause);state.family.splice(i,1);delete QUEUE[s.id];delete BUSYFN[s.id];
  state.family.forEach(o=>{if(o.partnerId===s.id){o.partnerId=null;o.widowed=true}});
  if(s.partnerId&&isNpc(s.partnerId)){const p=findPerson(s.partnerId);if(p&&p.partnerId===s.id)p.partnerId=null}
  (state.memorial=state.memorial||[]).unshift({name:s.name,age:s.age,cause,day:dayNum(),av:avatar(s)});
  const _I=state.ins||{};let extra='';if((_I.life||[]).includes(s.id)){state.money+=25000;_I.life=_I.life.filter(x=>x!==s.id);extra=' Life insurance paid the family $25,000.'}state.family.forEach(o=>{o.grief=dayNum()+3;applyNeeds(o,{fun:-40})});if(s.preplanned&&state.memorial[0])state.memorial[0].funeral=true;const m=`🕊️ ${s.name} passed away from ${cause} at age ${s.age}.${extra}${s.preplanned?' Their pre-planned funeral was held.':' Hold a funeral at the funeral home to help everyone grieve.'}`;log(m);toast(m);
  if(state.activeId===s.id&&state.family.length)state.activeId=(state.family.find(x=>stg(x)>=2)||state.family[0]).id;
  if(!state.family.some(x=>stg(x)>=3))state.gameOver=true;needRender=true}
-function npcDie(n){state.family.forEach(s=>{if(s.partnerId===n.id){s.partnerId=null;s.widowed=true;toast(`🕊️ ${s.name}'s partner ${n.name} passed away`)}});if(n.partnerId){const p=findPerson(n.partnerId);if(p&&p.partnerId===n.id){p.partnerId=null;p.married=false;p.widowed=true}}leaveFam(n)}
+function npcDie(n,cause){if(state.tree&&state.tree[tkey(n.id)])treeDeath(n.id,cause||'old age');state.family.forEach(s=>{if(s.partnerId===n.id){s.partnerId=null;s.widowed=true;toast(`🕊️ ${s.name}'s partner ${n.name} passed away`)}});if(n.partnerId){const p=findPerson(n.partnerId);if(p&&p.partnerId===n.id){p.partnerId=null;p.married=false;p.widowed=true}}leaveFam(n)}
 function deathDay(){if(!deathsOn())return;state.family.slice().forEach(s=>{
  if(s.needs.hunger<=0)s.starve=(s.starve||0)+1;else s.starve=0;
  if(s.starve>=2){killSim(s,'starvation');return}if(s.starve===1)toast(`⚠️ ${s.name} is starving! Feed them soon or they could die.`);
  let p=0;if(s.age>=70)p+=(s.age-68)*.003;if(s.sick&&s.sick.id==='flu')p+=stg(s)>=6?.03:.003;
  if(Math.random()<p)killSim(s,s.sick&&s.sick.id==='flu'&&Math.random()<.6?'complications from the flu':'old age')})}
-function npcDeaths(wid,npcs){if(!deathsOn())return;npcs.slice().forEach(n=>{let p=0;if(n.age>=70)p+=(n.age-68)*.003;if(stageIdx(n.age)>=4)p+=.0002;if(Math.random()<p){const cause=n.age>=70&&Math.random()<.85?'old age':R(['a car accident','an illness']);npcDie(n);news(wid,`🕊️ ${n.name} ${n.last} passed away from ${cause} at age ${n.age}`)}})}
+function npcDeaths(wid,npcs){if(!deathsOn())return;npcs.slice().forEach(n=>{let p=0;if(n.age>=70)p+=(n.age-68)*.003;if(stageIdx(n.age)>=4)p+=.0002;if(Math.random()<p){const cause=n.age>=70&&Math.random()<.85?'old age':R(['a car accident','an illness']);npcDie(n,cause);news(wid,`🕊️ ${n.name} ${n.last} passed away from ${cause} at age ${n.age}`)}})}
 function driveRisk(x){const r=Math.random();if(deathsOn()&&r<.0012){killSim(x,'a car accident');return'dead'}if(r<.012){const c=(state.ins&&state.ins.car===false)?1500:100;state.money-=c;return `\n🚗💥 Minor fender bender on the way (-${fmt$(c)}${c===100?' deductible, insurance covered the rest':', no car insurance'})`}return''}
 function deathsEntry(){return{icon:'🕊️',label:`Deaths: ${deathsOn()?'On':'Off'}`,sub:deathsOn()?'Sims can die from old age, illness, starvation or accidents':'Nobody in town will die',right:'›',onClick:()=>{state.deaths=!deathsOn();save();refreshSheet();render();toast(deathsOn()?'Deaths turned on':'Deaths turned off')}}}
 function renderGameOver(){return el('div',{style:'padding:16px 12px 40px'},el('h1',{},'🕊️ The story ends'),el('div',{class:'card'},el('div',{class:'mut',style:'margin-bottom:6px'},`No adults or teens are left in the ${state.familyName} family.`),...(state.memorial||[]).map(m=>el('div',{class:'logline'},el('b',{},`Day ${m.day}`),`${m.av} ${m.name}, age ${m.age} — ${m.cause}`))),el('button',{class:'btn full',onclick:()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}state=null;draft=null;tab='home';render()}},'Start a new family'))}
@@ -1247,7 +1251,7 @@ function switchHousehold(fid,wid){const W=state.worlds[wid];const f=W.fams.find(
  if(!state.playerFid)state.playerFid='f'+uid();const myFid=state.playerFid,myWid=state.homeWorld;
  const ids=new Set(state.family.map(s=>s.id));const mp=id=>id&&ids.has(id)?'n'+id.slice(1):id;
  const head=state.family.find(s=>s.role==='Head')||state.family[0];const partner=state.family.find(s=>s.partnerId===head.id);const sibKey=uid();const hasSib=state.family.some(x=>x.role==='Sibling');
- const members=state.family.map(s=>{const n={id:mp(s.id),wid:myWid,fid:myFid,name:s.name,last:state.familyName,age:s.age,g:s.g,tone:s.tone||0,traits:traitsOf(s).slice(),job:s.job?{id:s.job.id,level:s.job.level}:null,partnerId:mp(s.partnerId),married:!!s.married,parents:[],sib:null,student:!!s.uni};if(s.role==='Child')n.parents=[head,partner].filter(x=>x&&x!==s).map(x=>mp(x.id));if(s.role==='Sibling'||(s===head&&hasSib))n.sib=sibKey;return n});
+ const members=state.family.map(s=>{const n={id:mp(s.id),wid:myWid,fid:myFid,name:s.name,last:state.familyName,age:s.age,g:s.g,tone:s.tone||0,traits:traitsOf(s).slice(),job:s.job?{id:s.job.id,level:s.job.level}:null,partnerId:mp(s.partnerId),married:!!s.married,parents:(s.parents||[]).map(mp),sib:null,student:!!s.uni};if(s.role==='Child'&&!n.parents.length)n.parents=[head,partner].filter(x=>x&&x!==s).map(x=>mp(x.id));if(s.role==='Sibling'||(s===head&&hasSib))n.sib=sibKey;return n});
  allNpcs().forEach(n=>{if(n.partnerId&&ids.has(n.partnerId))n.partnerId=mp(n.partnerId)});
  const myLot=state.home&&state.home.lotId?lotById(myWid,state.home.lotId):null;
  state.saved=state.saved||{};
@@ -1256,7 +1260,7 @@ function switchHousehold(fid,wid){const W=state.worlds[wid];const f=W.fams.find(
  const sv=state.saved[fid];const lot=lotById(wid,f.lotId);W.fams=W.fams.filter(x=>x!==f);
  const nids=new Set(f.members.map(n=>n.id));const ms=id=>id&&nids.has(id)?'s'+id.slice(1):id;
  const adults=f.members.filter(n=>stageIdx(n.age)>=4).sort((a,b)=>b.age-a.age);const headN=adults.find(n=>n.partnerId&&nids.has(n.partnerId))||adults[0]||f.members[0];
- const fam=f.members.map(n=>{let s=sv&&sv.sims&&sv.sims[n.id];if(s){Object.assign(s,{name:n.name,age:n.age,partnerId:ms(n.partnerId),married:!!n.married})}else{const role=n===headN?'Head':headN.partnerId===n.id?'Partner':(n.parents||[]).some(p=>nids.has(p))?'Child':kin(n,headN)?'Sibling':'Roommate';s=newSim(n.name,n.g,n.age,role);s.id=ms(n.id);s.tone=n.tone||0;s.traits=traitsOf(n).slice(0,3);if(n.job)s.job={id:n.job.id,level:n.job.level,perf:0};s.partnerId=ms(n.partnerId);s.married=!!n.married}s.loc={type:'home'};s.busy=null;return s});
+ const fam=f.members.map(n=>{let s=sv&&sv.sims&&sv.sims[n.id];if(s){Object.assign(s,{name:n.name,age:n.age,partnerId:ms(n.partnerId),married:!!n.married})}else{const role=n===headN?'Head':headN.partnerId===n.id?'Partner':(n.parents||[]).some(p=>nids.has(p))?'Child':kin(n,headN)?'Sibling':'Roommate';s=newSim(n.name,n.g,n.age,role);s.id=ms(n.id);s.tone=n.tone||0;s.traits=traitsOf(n).slice(0,3);if(n.job)s.job={id:n.job.id,level:n.job.level,perf:0};s.partnerId=ms(n.partnerId);s.married=!!n.married;s.parents=(n.parents||[]).map(ms)}s.loc={type:'home'};s.busy=null;return s});
  fam.forEach(a=>fam.forEach(b=>{if(a!==b&&!a.rels[b.id])a.rels[b.id]={f:(a.role==='Child'||b.role==='Child')?70:60,r:a.partnerId===b.id?75:0}}));
  allNpcs().forEach(o=>{if(o.partnerId&&nids.has(o.partnerId))o.partnerId=ms(o.partnerId)});
  state.family=fam;state.activeId=(fam.find(x=>x.role==='Head')||fam[0]).id;state.familyName=f.last;
@@ -1298,10 +1302,56 @@ function homeBanners(){if(isHotel())return[];const out=[];const d=dayNum();const
  return out}
 
 /* ============ daily ============ */
-function dailyExtras(nd){checkBills(nd);roommateDay(nd);insEvents();
+function dailyExtras(nd){refreshTree();checkBills(nd);roommateDay(nd);insEvents();
  if(state.home&&!isAwayHome()){state.laundry=clamp((state.laundry||0)+state.family.filter(s=>stg(s)>=1).length*6+(state.roommates||[]).length*2,0,100);if(state.laundry>=60)toast('🧺 The laundry is piling up!')}
  const si=seasonInfo(nd);if(si.day===1&&nd>1){const m=si.s===0?`🎆 Happy New Year! Welcome to Year ${si.year}. 🌸 Spring is here.`:`${si.i} ${si.name} has arrived!`;log(m);toast(m)}
  if(isHoliday(nd)){const m=`🎉 Happy ${holidayName(nd)}! No school today.`;log(m);toast(m);state.family.forEach(s=>applyNeeds(s,{fun:20}))}}
+
+/* ============ DMV & dealers everywhere ============ */
+Object.assign(VENUES,{ndmv:like('dmv',{n:'Neon City DMV',desc:"Driving lessons & driver's license tests"}),ncars:like('cars',{n:'Skyline Auto Gallery',i:'🚘'}),hb_dmv:like('dmv',{n:'Harbor Bay DMV'}),hb_motors:like('cars',{n:'Anchor Auto Sales',i:'🚙'})});
+WORLDS.neon.venues.push('ndmv','ncars');WORLDS.harbor.venues.push('hb_dmv','hb_motors');
+JOB_VENUES.transport.push('ndmv','hb_dmv');JOB_VENUES.trades.push('ncars','hb_motors');
+
+/* ============ family tree ============ */
+const tkey=id=>id?String(id).slice(1):null;
+function treeUpsert(p,last){const T=state.tree||(state.tree={});const k=tkey(p.id);const e=T[k]||(T[k]={k,parents:[],spouses:[]});
+ Object.assign(e,{name:p.name,last:last||p.last||e.last||state.familyName,g:p.g,tone:p.tone||0,age:p.age});if(!e.dead)e.live=true;
+ (p.parents||[]).forEach(x=>{const pk=x.length>1&&/^[sn]/.test(x)?tkey(x):x;if(!e.parents.includes(pk))e.parents.push(pk)});
+ if(p.partnerId&&p.married){const sk=tkey(p.partnerId);if(!e.spouses.includes(sk))e.spouses.push(sk)}return e}
+function refreshTree(){if(!state||!state.family)return;const seen=new Set();let frontier=state.family.map(s=>s.id);
+ state.family.forEach(s=>treeUpsert(s,state.familyName));
+ const npcs=allNpcs();const byKey={};npcs.forEach(n=>byKey[tkey(n.id)]=n);
+ for(let depth=0;depth<4&&frontier.length;depth++){const next=[];frontier.forEach(id=>{const k=tkey(id);if(seen.has(k))return;seen.add(k);const p=findPerson(id)||byKey[k];if(!p)return;
+  const links=[...(p.parents||[]),p.married&&p.partnerId?p.partnerId:null,...npcs.filter(n=>(n.parents||[]).some(x=>tkey(x)===k)).map(n=>n.id)].filter(Boolean);
+  links.forEach(l=>{const q=findPerson(l)||byKey[tkey(l)];if(q&&isNpc(q.id))treeUpsert(q);if(q)next.push(q.id)})});frontier=next}}
+function treeDeath(id,cause){refreshTree();const e=(state.tree||{})[tkey(id)];if(e){e.dead=true;e.live=false;e.cause=cause;e.diedDay=dayNum()}}
+function deriveParents(){const head=state.family.find(s=>s.role==='Head')||state.family[0];if(!head)return;const partner=state.family.find(s=>s.partnerId===head.id);
+ const elders=state.family.filter(s=>s.role==='Parent');let sibPar=elders.map(x=>x.id);
+ if(!sibPar.length&&state.family.some(s=>s.role==='Sibling')){const ph='x'+uid();(state.tree||(state.tree={}))[ph]={k:ph,name:`${state.familyName} parents`,last:'',g:'x',tone:head.tone||0,age:70,parents:[],spouses:[],unknown:true};sibPar=['x'+ph.slice(1)];sibPar=[ph]}
+ state.family.forEach(s=>{if(s.parents&&s.parents.length)return;if(s.role==='Child')s.parents=[head,partner].filter(x=>x&&x!==s).map(x=>x.id);else if(s===head||s.role==='Sibling')s.parents=sibPar.slice()})}
+function tEntry(k){return(state.tree||{})[k]}
+function tChildren(k){return Object.values(state.tree||{}).filter(e=>e.parents.includes(k)).map(e=>e.k)}
+function tSpouses(k){const e=tEntry(k);const out=new Set(e?e.spouses:[]);Object.values(state.tree||{}).forEach(x=>{if(x.spouses.includes(k))out.add(x.k)});return[...out]}
+function tAvatar(e){if(!e)return'❔';if(e.unknown)return'👥';return tone(AV[e.g||'x'][stageIdx(e.age||30)],e.tone||0)}
+function treeCard(k,rootK){const e=tEntry(k);if(!e)return null;const inHome=state.family.some(s=>tkey(s.id)===k);const sp=tSpouses(k).map(tEntry).filter(Boolean);
+ return el('div',{class:'tcard'+(k===rootK?' root':'')+(e.dead?' dead':''),onclick:()=>{if(!e.unknown){sheetStack.pop();pushMenu('Family tree',treeMenu(k))}}},
+  el('div',{style:'font-size:28px'},tAvatar(e)),el('div',{style:'font-weight:900;font-size:13px'},e.name),el('div',{class:'mut',style:'font-size:11px'},e.unknown?'Not in game':e.dead?`✝ age ${e.age}${e.cause?` · ${e.cause}`:''}`:`${stageName(e.age)}, ${e.age}${inHome?' · 🏠':''}`),
+  sp.length?el('div',{style:'font-size:11px;font-weight:800;color:var(--pri)'},`💍 ${sp.map(x=>x.name+(x.dead?' ✝':'')).join(', ')}`):null)}
+function treeMenu(rootK){return()=>{refreshTree();const T=state.tree||{};if(!rootK||!T[rootK])rootK=tkey(active().id);const root=T[rootK];if(!root)return[el('div',{class:'card mut'},'No family tree yet.')];
+ const parents=root.parents.filter(k=>T[k]);const gp=[...new Set(parents.flatMap(k=>T[k].parents).filter(k=>T[k]))];const ggp=[...new Set(gp.flatMap(k=>T[k].parents).filter(k=>T[k]))];
+ const sibs=[...new Set(parents.flatMap(tChildren))].filter(k=>k!==rootK);
+ const auntsUncles=[...new Set(gp.flatMap(tChildren))].filter(k=>!parents.includes(k));
+ const kids=[...new Set([rootK,...tSpouses(rootK)].flatMap(tChildren))];const gk=[...new Set(kids.flatMap(tChildren))];const ggk=[...new Set(gk.flatMap(tChildren))];
+ const row=(title,ks)=>ks.length?[title,el('div',{class:'trow'},ks.map(k=>treeCard(k,rootK)))]:[];
+ // generations count for the line
+ const depthUp=(k,seen=new Set())=>{const e=T[k];if(!e||!e.parents.length||seen.has(k)||seen.size>12)return 0;seen.add(k);return 1+Math.max(...e.parents.filter(x=>T[x]).map(x=>depthUp(x,new Set(seen))),0)};
+ const gen=depthUp(rootK)+1;
+ const all=Object.values(T).filter(e=>!e.unknown);
+ return[el('div',{class:'card center'},el('div',{class:'big'},'🌳'),el('h2',{},`The ${root.last||state.familyName} family tree`),el('div',{class:'mut'},`${root.name} is generation ${gen} · ${all.length} relatives recorded · ${all.filter(e=>e.dead).length} remembered`),el('div',{class:'mut',style:'font-size:12px;margin-top:4px'},'Tap anyone to center the tree on them.')),
+  ...row('Great-grandparents',ggp),...row('Grandparents',gp),...row('Parents',parents),...row('Aunts & uncles',auntsUncles),
+  'You & siblings',el('div',{class:'trow'},[rootK,...sibs].map(k=>treeCard(k,rootK))),
+  ...row('Children',kids),...row('Grandchildren',gk),...row('Great-grandchildren',ggk),
+  {icon:'🎯',label:`Center on ${active().name}`,onClick:()=>{sheetStack.pop();pushMenu('Family tree',treeMenu(tkey(active().id)))}}]}}
 
 /* ============ rendering ============ */
 function render(){if(QUIET){needRender=true;return}const y=window.scrollY;const app=$('#app');app.innerHTML='';
@@ -1370,7 +1420,7 @@ function renderBuild(){const own=state.home&&state.world===state.homeWorld;const
  out.push(...buildList([`Inventory (${state.inv.length})`].concat(state.inv.length?state.inv.map(it=>({icon:ITEMS[it.id].i,label:ITEMS[it.id].n,sub:own?'Tap to place or sell':'Place it when you get home',right:own?'›':'',onClick:()=>own&&pushMenu(ITEMS[it.id].n,ownedItemMenu(it,null))})):[el('div',{class:'card mut'},'Empty. Buy things with "→ inventory" or pick up souvenirs on vacation.')])));
  return el('div',{},out)}
 
-function renderFamily(){const out=[el('h1',{},`The ${state.familyName} family`)];
+function renderFamily(){const out=[el('h1',{},`The ${state.familyName} family`),el('div',{class:'card',style:'padding:2px 12px'},rowNode({icon:'🌳',label:'Family tree',sub:'Parents, grandparents, kids & the ones you remember',right:'›',onClick:()=>pushMenu('Family tree',treeMenu())}))];
  state.family.forEach(s=>{const j=s.job&&jobById(s.job.id);const st=stg(s);
   out.push(el('div',{class:'card'},
    el('div',{style:'display:flex;gap:10px;align-items:center'},el('div',{style:'font-size:36px'},avatar(s)),el('div',{style:'flex:1'},el('div',{style:'font-weight:900;font-size:16px'},s.name+(s.id===state.activeId?' ⭐':'')),el('div',{class:'mut'},`${stageName(s.age)} · age ${s.age} · ${s.role}${s.partnerId?` · ${s.married?'married to':'dating'} ${(findPerson(s.partnerId)||{}).name||'someone'}`:''}`)),el('div',{style:'font-size:24px'},moodEmoji(s))),
@@ -1386,7 +1436,7 @@ function simDetails(id){return()=>{const s=state.family.find(x=>x.id===id);if(!s
  if(s.job){const j=jobById(s.job.id);out.push({icon:j.i,label:j.lv[s.job.level][0],sub:`${j.n} · ${fmtH(j.start)}, ${j.hours}h · ${daysText(j.days)} · needs ${SKILLS.find(x=>x[0]===j.skill)[2]} to advance`});out.push({icon:'🚪',label:'Quit job',onClick:()=>{s.job=null;log(`${s.name} quit their job`);save();refreshSheet();render()}})}
  if(st>=3)out.push({icon:'📋',label:s.job?'Switch jobs':'Find a job',right:'›',onClick:()=>pushMenu('Job board',jobBoard(id))});
  else out.push(el('div',{class:'card mut'},st<=1?'Too young for school or work.':'Kids go to school on weekdays (8 AM–3 PM).'));
- out.push('Profile');out.push({icon:avatar(s),label:'Skin tone',sub:TONE_NAMES[s.tone||0],right:'›',onClick:()=>pushMenu(`${s.name}'s skin tone`,()=>{const x=state.family.find(y=>y.id===id);return[el('div',{class:'card'},toneChips(x.g,stageIdx(x.age),x.tone||0,t=>{x.tone=t;save();refreshSheet();render()}),el('div',{class:'mut',style:'margin-top:6px'},TONE_NAMES[x.tone||0]))]})});out.push({icon:'✨',label:'Traits',sub:traitsOf(s).join(', ')||'None yet',right:'›',onClick:()=>pushMenu(`${s.name}'s traits`,editTraits(s.id))});out.push({icon:'✏️',label:'Rename',right:'›',onClick:()=>pushMenu('Rename',()=>[inputCard('New name',s.name,v=>{s.name=v;save();sheetStack.pop();refreshSheet();render()})])});
+ out.push('Profile');out.push({icon:'🌳',label:'Family tree',right:'›',onClick:()=>pushMenu('Family tree',treeMenu(tkey(s.id)))});out.push({icon:avatar(s),label:'Skin tone',sub:TONE_NAMES[s.tone||0],right:'›',onClick:()=>pushMenu(`${s.name}'s skin tone`,()=>{const x=state.family.find(y=>y.id===id);return[el('div',{class:'card'},toneChips(x.g,stageIdx(x.age),x.tone||0,t=>{x.tone=t;save();refreshSheet();render()}),el('div',{class:'mut',style:'margin-top:6px'},TONE_NAMES[x.tone||0]))]})});out.push({icon:'✨',label:'Traits',sub:traitsOf(s).join(', ')||'None yet',right:'›',onClick:()=>pushMenu(`${s.name}'s traits`,editTraits(s.id))});out.push({icon:'✏️',label:'Rename',right:'›',onClick:()=>pushMenu('Rename',()=>[inputCard('New name',s.name,v=>{s.name=v;save();sheetStack.pop();refreshSheet();render()})])});
  const rels=Object.entries(s.rels).filter(([pid,r])=>findPerson(pid)&&(Math.abs(r.f)>=5||r.r>0)).sort((a,b)=>b[1].f-a[1].f);
  out.push(`Relationships (${rels.length})`);if(!rels.length)out.push(el('div',{class:'card mut'},'No relationships yet. Go meet people!'));
  rels.forEach(([pid,r])=>{const p=findPerson(pid);out.push({icon:avatar(p),label:`${p.name} ${p.last||''}`,sub:`${relLabel(r,pid,s)} · ❤️ ${Math.round(r.f)}${r.r?` · 💘 ${Math.round(r.r)}`:''}`})});
@@ -1434,7 +1484,7 @@ function startGame(){const d=draft;if(!d.last.trim()){toast('Give your family a 
  state={v:3,pets:[],bag:{},cars:[],news:[],fridge:[],memorial:[],deaths:true,pantry:{eggs:2,milk:1,bread:2,cheese:1,pasta:1,tomato:2},roommates:[],bills:[],shutoff:{},ins:{car:true,life:[]},laundry:0,seasonLen:7,aging:'week',autonomy:'others',saved:{},speed:0,familyName:d.last.trim(),family:fam,activeId:fam[0].id,money:30000,time:480,world:'willow',homeWorld:'willow',home:null,hotel:null,inv:[],worlds,log:[]};
  render();window.scrollTo(0,0)}
 
-state=load();if(state){migrate(state);prevSpeed=state.speed||1;state.speed=0;state.family.forEach(x=>{if(x.busy&&x.busy.away&&!x.busy.prevLoc)x.busy=null})}render();if(state&&state.home)toast(state._refreshed?'🏘️ Your town got new neighbors! Paused — tap 1x to start':'⏸ Paused. Tap 1x to start the clock');if(state)delete state._refreshed;
+state=load();if(state){migrate(state);if(!state.tree&&state.family.length){deriveParents();refreshTree()}prevSpeed=state.speed||1;state.speed=0;state.family.forEach(x=>{if(x.busy&&x.busy.away&&!x.busy.prevLoc)x.busy=null})}render();if(state&&state.home)toast(state._refreshed?'🏘️ Your town got new neighbors! Paused — tap 1x to start':'⏸ Paused. Tap 1x to start the clock');if(state)delete state._refreshed;
 </script>
 </body>
 </html>
