@@ -355,7 +355,7 @@ function autonomy(s){const n=s.needs;
 function onHour(){const h=hour(),d=dayNum(),dw=dowOf(d),a=active();if(state.welcome&&state.time>=state.welcome.at)doWelcome();
  state.family.forEach(s=>{const st=stg(s);
   if(s.job){const j=jobById(s.job.id);if(j.days.includes(dw)&&s.lastWorked!==d){
-    if(s!==a&&h===j.start&&atHouse(s)&&!s.busy&&state.autonomy!=='off'){s.lastWorked=d;const lvl=j.lv[s.job.level];startBusy(s,`At work (${lvl[0]})`,j.i,j.hours*60,{energy:-25,social:10,fun:-10,hunger:lunchFor(s,j.hours,true).h},x=>{const pay=Math.round(lvl[1]*j.hours*degBonus(x,j));state.money+=pay;let m=`${x.name} got home from work: +${fmt$(pay)}`;if(x.job){x.job.perf=clamp(x.job.perf+10*WORK_FOCUS[x.workFocus||'normal'].perf,-50,100);m+=focusExtras(x,j);const pr=checkPromo(x);if(pr&&pr.startsWith('🎉'))m+='\n'+pr}return m},{away:'At work'});log(`${s.name} left for work`)}
+    if(s!==a&&h===j.start&&atHouse(s)&&!s.busy&&state.autonomy!=='off'){s.lastWorked=d;const lvl=j.lv[s.job.level];startBusy(s,`At work (${lvl[0]})`,j.i,j.hours*60,{energy:-25,social:10,fun:-10,hunger:lunchFor(s,j.hours,true).h},x=>{const pay=Math.round(lvl[1]*j.hours*degBonus(x,j));state.money+=pay;let m=`${x.name} got home from work: +${fmt$(pay)}`;if(x.job){x.job.perf=clamp(x.job.perf+10*focusPerf(x),-50,100);m+=focusExtras(x,j);const pr=checkPromo(x);if(pr&&pr.startsWith('🎉'))m+='\n'+pr}return m},{away:'At work'});s.busy.work=true;log(`${s.name} left for work`)}
     if(s===a&&h===j.start-1)toast(`⏰ ${s.name} has work at ${fmtH(j.start)}!`)}}
   if((st===2||st===3)&&dw<5&&!isHoliday(d)&&s.lastSchool!==d){
     if(s!==a&&h===8&&atHouse(s)&&!s.busy&&state.autonomy!=='off'){s.lastSchool=d;startBusy(s,'At school','🎒',7*60,{social:20,fun:-5,energy:-10,hunger:40},x=>{x.grade=clamp(x.grade+4,0,100);addSkill(x,'logic',.3);return `${x.name} got home from school 🎒`},{away:'At school'});log(`${s.name} left for school`)}
@@ -442,7 +442,7 @@ function workEntry(s){const st=stg(s),d=dayNum(),dw=dowOf(d),h=hour();const out=
  if((st===2||st===3)){const can=dw<5&&s.lastSchool!==d&&h>=7&&h<=9;out.push({icon:'🎒',label:'Go to school',sub:s.lastSchool===d?'Already went today ✅':dw>=5?'No school on weekends 🎉':can?'8 AM – 3 PM':'School runs 8 AM – 3 PM (leave 7–9 AM)',disabled:!can,onClick:()=>goSchool(s)})}
  return out}
 function goWork(s){if(s.busy){enqueue(s,'Go to work','💼',()=>goWork(s));closeSheet();return}const j=jobById(s.job.id),L=j.lv[s.job.level];const late=state.time%1440>j.start*60+15;const mood=avgMood(s);s.lastWorked=dayNum();
- const lunch=lunchFor(s,j.hours);startBusy(s,`At work (${L[0]})`,j.i,j.hours*60,{energy:-30,fun:-18,social:10,hygiene:-10,hunger:lunch.h},x=>{const pay=Math.round(L[1]*j.hours*degBonus(x,j));state.money+=pay;addSkill(x,j.skill,.4);if(!x.job)return `${x.name} finished their last shift (+${fmt$(pay)})`;const gain=Math.round((12+mood/10-(late?8:0))*(x.sick?.4:1)*(hasTrait(x,'Ambitious')?1.3:1)*WORK_FOCUS[x.workFocus||'normal'].perf);const fx=focusExtras(x,j);x.job.perf=clamp(x.job.perf+gain,-50,100);let msg=`${x.name} finished work as a ${L[0]} and earned ${fmt$(pay)}${late?' (arrived late 😬)':''}.${fx}`;const pr=checkPromo(x);if(pr)msg+='\n'+pr;return msg},{away:'At work'});
+ const lunch=lunchFor(s,j.hours);startBusy(s,`At work (${L[0]})`,j.i,j.hours*60,{energy:-30,fun:-18,social:10,hygiene:-10,hunger:lunch.h},x=>{const pay=Math.round(L[1]*j.hours*degBonus(x,j));state.money+=pay;addSkill(x,j.skill,.4);if(!x.job)return `${x.name} finished their last shift (+${fmt$(pay)})`;const gain=Math.round((12+mood/10-(late?8:0))*(x.sick?.4:1)*(hasTrait(x,'Ambitious')?1.3:1)*focusPerf(x));const fx=focusExtras(x,j);x.job.perf=clamp(x.job.perf+gain,-50,100);let msg=`${x.name} finished work as a ${L[0]} and earned ${fmt$(pay)}${late?' (arrived late 😬)':''}.${fx}`;const pr=checkPromo(x);if(pr)msg+='\n'+pr;return msg},{away:'At work'});s.busy.work=true;
  closeSheet();toast(`${j.i} ${s.name} headed to work${late?' (late!)':''}${lunch.note?'\n'+lunch.note:''}`);save();render()}
 function goSchool(s){if(s.busy){enqueue(s,'Go to school','🎒',()=>goSchool(s));closeSheet();return}s.lastSchool=dayNum();startBusy(s,'At school','🎒',7*60,{social:25,fun:-5,energy:-15,hunger:40},x=>{x.grade=clamp(x.grade+6,0,100);addSkill(x,'logic',.5);return `${x.name} got home from school 🎒 (grade ${gradeLetter(x.grade)})`},{away:'At school'});closeSheet();toast(`🎒 ${s.name} headed to school (school lunch included 🍎)`);save();render()}
 const gradeLetter=g=>g>=90?'A+':g>=80?'A':g>=70?'B':g>=60?'C':g>=50?'D':'F';
@@ -641,8 +641,8 @@ const BUSYFN={};
 function startBusy(s,label,icon,mins,needs,done,opts={}){mins=Math.max(1,Math.round(mins));
  s.busy={label,icon,mins,start:state.time,end:state.time+mins,needs:needs||null,away:opts.away||null,prevLoc:opts.away?s.loc:null};
  if(opts.away)s.loc={type:'away',label:opts.away};BUSYFN[s.id]=done;return true}
-function tickBusy(step){state.family.forEach(s=>{const b=s.busy;if(!b)return;if(b.needs)for(const k in b.needs)s.needs[k]=clamp(s.needs[k]+b.needs[k]*step/b.mins,0,100);if(state.time>=b.end)finishBusy(s)})}
-function finishBusy(s){const b=s.busy;s.busy=null;if(b.away&&b.prevLoc)s.loc=b.prevLoc;const fn=BUSYFN[s.id];delete BUSYFN[s.id];
+function tickBusy(step){state.family.forEach(s=>{const b=s.busy;if(!b)return;if(b.work){const f=s.workFocus||'normal';b.fmins=b.fmins||{};b.fmins[f]=(b.fmins[f]||0)+step}if(b.needs)for(const k in b.needs)s.needs[k]=clamp(s.needs[k]+b.needs[k]*step/b.mins,0,100);if(state.time>=b.end)finishBusy(s)})}
+function finishBusy(s){const b=s.busy;s.busy=null;if(b.away&&b.prevLoc)s.loc=b.prevLoc;s._fm=b.work?(b.fmins||{}):null;const fn=BUSYFN[s.id];delete BUSYFN[s.id];
  let msg;try{msg=fn?fn(s):`${s.name} finished: ${b.label}`}catch(e){console.error(e);msg=`${s.name} finished: ${b.label}`}
  if(msg){log(msg);toast(msg+warnText(s))}needRender=true;save();runNext(s)}
 function busyToast(s){toast(`${s.name} is busy (${s.busy.label}). Wait, skip, or cancel first.`)}
@@ -1390,15 +1390,21 @@ function promoCard(s){if(!s.job)return null;const j=jobById(s.job.id);const top=
   el('div',{class:'mut',style:'font-size:12px;margin-top:4px'},`${top?'':`Performance fills up each shift. At 100% you're promoted once the skills are met. `}${s.job.perf<0?'⚠️ Performance is negative — missed work hurts. ':''}Focus: ${F.i} ${F.n}`))}
 function promoMini(s){if(!s.job)return null;const j=jobById(s.job.id);if(s.job.level>=j.lv.length-1)return el('div',{class:'mut',style:'font-size:12px;margin:2px 0 6px'},'🏆 Top of their career');const perf=clamp(Math.round(s.job.perf),0,100);const miss=promoMissing(s);
  return el('div',{style:'margin:2px 0 8px'},el('div',{class:'mut',style:'font-size:11px;font-weight:800;display:flex;justify-content:space-between'},el('span',{},`📈 to ${j.lv[s.job.level+1][0]}`),el('span',{},`${perf}%${miss.length?` · needs ${miss.map(([k,v])=>skillIcon(k)+v).join(' ')}`:' · skills ✅'}`)),el('div',{class:'bar'},el('i',{style:`width:${perf}%;background:${perf>=100?'var(--acc)':'var(--blue)'}`})))}
-function focusEntry(s){const F=WORK_FOCUS[s.workFocus||'normal'];return{icon:F.i,label:`Work focus: ${F.n}`,sub:F.desc,right:'›',onClick:()=>pushMenu('Work focus',()=>[el('div',{class:'card mut'},`How ${s.name} spends their shifts. You can change it any time — it applies when the shift ends.`)].concat(Object.entries(WORK_FOCUS).map(([k,f])=>({icon:f.i,label:f.n,sub:`${f.desc} · progress ×${f.perf}`,right:(s.workFocus||'normal')===k?'✓':'',onClick:()=>{s.workFocus=k;save();sheetStack.pop();refreshSheet();render();toast(`${f.i} ${s.name} will ${f.n.toLowerCase()}`)}}))))}}
-function focusExtras(x,j){const k=x.workFocus||'normal';
- if(k==='hard'){applyNeeds(x,{energy:-15,fun:-10});return' 🔥 Worked extra hard.'}
- if(k==='easy'){applyNeeds(x,{energy:15,fun:12});return' 😌 Took it easy today.'}
- if(k==='skill'){addSkill(x,j.skill,.8);return` 📚 Practiced ${skillName(j.skill)}.`}
- if(k==='social'){applyNeeds(x,{social:25,fun:5});let co=allNpcs().filter(n=>n.wid===state.homeWorld&&n.job&&n.job.id===j.id&&stageIdx(n.age)>=3);
+function focusEntry(s){const F=WORK_FOCUS[s.workFocus||'normal'];return{icon:F.i,label:`Work focus: ${F.n}`,sub:shiftBreakdown(s)?`This shift: ${shiftBreakdown(s)}`:F.desc,right:'›',onClick:()=>pushMenu('Work focus',()=>[el('div',{class:'card mut'},`How ${s.name} spends their shifts. Change it any time, even mid-shift — each focus only counts for the part of the shift it was set.${shiftBreakdown(s)?` This shift so far: ${shiftBreakdown(s)}`:''}`)].concat(Object.entries(WORK_FOCUS).map(([k,f])=>({icon:f.i,label:f.n,sub:`${f.desc} · progress ×${f.perf}`,right:(s.workFocus||'normal')===k?'✓':'',onClick:()=>{s.workFocus=k;save();sheetStack.pop();refreshSheet();render();toast(`${f.i} ${s.name} will ${f.n.toLowerCase()}`)}}))))}}
+function focusWeights(x){const fm=x._fm;const tot=fm?Object.values(fm).reduce((a,b)=>a+b,0):0;if(!tot)return{[x.workFocus||'normal']:1};const w={};for(const k in fm)w[k]=fm[k]/tot;return w}
+function focusPerf(x){const w=focusWeights(x);return Object.entries(w).reduce((a,[k,v])=>a+v*WORK_FOCUS[k].perf,0)}
+function fmtMins(m){return m>=60?`${Math.floor(m/60)}h${m%60?' '+m%60+'m':''}`:`${m}m`}
+function shiftBreakdown(s){const fm=s.busy&&s.busy.work?s.busy.fmins:null;if(!fm)return'';return Object.entries(fm).filter(([k,v])=>v>0).map(([k,v])=>`${WORK_FOCUS[k].i} ${fmtMins(v)}`).join(' · ')}
+function focusExtras(x,j){const w=focusWeights(x);const notes=[];
+ if(w.hard){applyNeeds(x,{energy:-15*w.hard,fun:-10*w.hard});notes.push('🔥 worked hard')}
+ if(w.easy){applyNeeds(x,{energy:15*w.easy,fun:12*w.easy});notes.push('😌 took it easy')}
+ if(w.skill){addSkill(x,j.skill,.8*w.skill);notes.push(`📚 practiced ${skillName(j.skill)}`)}
+ if(w.social){applyNeeds(x,{social:25*w.social,fun:5*w.social});if(w.social>=.25){let co=allNpcs().filter(n=>n.wid===state.homeWorld&&n.job&&n.job.id===j.id&&stageIdx(n.age)>=3);
   if(co.length<2){const f=genHousehold(state.homeWorld,'single');const n=f.members[0];n.job={id:j.id,level:Math.floor(Math.random()*3)};n.age=clamp(n.age,20,60);state.worlds[state.homeWorld].fams.push(f);co.push(n)}
-  const met=shuffle(co).slice(0,2);met.forEach(n=>{const r=rel(x,n.id);r.f=clamp(r.f+10,-100,100)});return` 🤝 Hung out with coworkers ${met.map(n=>n.name).join(' & ')}.`}
- return''}
+  const met=shuffle(co).slice(0,w.social>=.6?2:1);met.forEach(n=>{const r=rel(x,n.id);r.f=clamp(r.f+Math.round(10*w.social),-100,100)});notes.push(`🤝 hung out with ${met.map(n=>n.name).join(' & ')}`)}else notes.push('🤝 chatted with coworkers')}
+ if(!notes.length)return'';const mixed=Object.keys(w).length>1;
+ const parts=Object.entries(w).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${WORK_FOCUS[k].i} ${Math.round(v*100)}%`).join(' · ');
+ return ' '+notes.join(', ').replace(/^./,c=>c.toUpperCase())+'.'+(mixed?` (Shift: ${parts})`:'')}
 
 /* ============ rendering ============ */
 function render(){if(QUIET){needRender=true;return}const y=window.scrollY;const app=$('#app');app.innerHTML='';
