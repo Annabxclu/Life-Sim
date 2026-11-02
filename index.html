@@ -67,12 +67,16 @@ input,select{font:inherit;font-weight:700;padding:10px;border:2px solid var(--li
 .sh-h .t{flex:1;text-align:center}
 .sh-h button{border:0;background:#fff;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer}
 .sh-b{overflow:auto;padding:0 12px calc(24px + env(safe-area-inset-bottom))}
-#toast{position:fixed;left:50%;top:12px;transform:translateX(-50%) translateY(-120%);background:#2b2a33;color:#fff;padding:10px 16px;border-radius:14px;font-weight:700;font-size:14px;z-index:40;max-width:92%;transition:transform .25s;white-space:pre-line;text-align:center}
+#toast{position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(300%);background:#2b2a33;color:#fff;padding:10px 16px;border-radius:14px;font-weight:700;font-size:14px;z-index:40;max-width:92%;transition:transform .25s;white-space:pre-line;text-align:center}
 #toast.show{transform:translateX(-50%) translateY(0)}
 .skills{display:flex;flex-wrap:wrap;gap:4px}
 .big{font-size:44px;text-align:center}
 .center{text-align:center}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.speeds{display:flex;background:#fff;border-radius:12px;overflow:hidden;margin-top:6px;box-shadow:0 1px 0 var(--line)}
+.speeds button{flex:1;border:0;background:none;padding:7px 0;font:inherit;font-size:12px;font-weight:800;color:var(--mut);cursor:pointer}
+.speeds button.on{background:var(--acc);color:#fff}
+.busy{background:#eef3fe;border-radius:12px;padding:8px 10px;margin-bottom:8px}
 .logline{font-size:13px;padding:6px 0;border-bottom:1px solid var(--line)}
 .logline b{color:var(--mut);font-size:11px;display:block}
 </style>
@@ -303,8 +307,8 @@ const homeValue=()=>state.home?HOMES[state.home.id].p:0;
 const itemsValue=()=>state.home?state.home.rooms.reduce((a,r)=>a+r.items.reduce((b,it)=>b+ITEMS[it.id].p,0),0):0;
 
 /* ============ time ============ */
-function advance(mins){let rem=mins;while(rem>0){const step=Math.min(rem,60-(state.time%60));const pd=dayNum();state.time+=step;rem-=step;decayAll(step);if(state.time%60===0)onHour();if(dayNum()!==pd)onNewDay(pd)}}
-function decayAll(step){const a=active();state.family.forEach(s=>{const st=stg(s);const mult=st<=1?.75:1;for(const k in DECAY){let r=DECAY[k]*mult;if(st===0&&k==='hunger')r=7;s.needs[k]=clamp(s.needs[k]-r*step/60,0,100)}if(s!==a&&st>=2&&atHouse(s))autonomy(s)});if(state.pets)petDecay(step)}
+function advance(mins){let rem=mins;while(rem>0){const step=Math.min(rem,60-(state.time%60));const pd=dayNum();state.time+=step;rem-=step;decayAll(step);tickBusy(step);if(state.time%60===0)onHour();if(dayNum()!==pd)onNewDay(pd)}}
+function decayAll(step){const a=active();state.family.forEach(s=>{const st=stg(s);const mult=st<=1?.75:1;for(const k in DECAY){let r=DECAY[k]*mult;if(st===0&&k==='hunger')r=7;s.needs[k]=clamp(s.needs[k]-r*step/60,0,100)}if(s!==a&&st>=2&&atHouse(s)&&!s.busy)autonomy(s)});if(state.pets)petDecay(step)}
 function autonomy(s){const n=s.needs;
  if(n.hunger<30&&(hasType('fridge')||hasType('stove'))&&state.money>=5){n.hunger=75;state.money-=5}
  if(n.energy<25&&(hasType('bed')||hasType('couch')))n.energy=80;
@@ -315,10 +319,10 @@ function autonomy(s){const n=s.needs;
 function onHour(){const h=hour(),d=dayNum(),dw=dowOf(d),a=active();
  state.family.forEach(s=>{const st=stg(s);
   if(s.job){const j=jobById(s.job.id);if(j.days.includes(dw)&&s.lastWorked!==d){
-    if(s!==a&&h===j.start&&atHouse(s)){s.lastWorked=d;const pay=j.lv[s.job.level][1]*j.hours;state.money+=pay;s.job.perf=clamp(s.job.perf+10,-50,100);s.needs.energy=clamp(s.needs.energy-25,0,100);s.needs.social=clamp(s.needs.social+10,0,100);log(`${s.name} went to work and earned ${fmt$(pay)}`);checkPromo(s)}
+    if(s!==a&&h===j.start&&atHouse(s)&&!s.busy){s.lastWorked=d;const lvl=j.lv[s.job.level];startBusy(s,`At work (${lvl[0]})`,j.i,j.hours*60,{energy:-25,social:10,fun:-10},x=>{const pay=lvl[1]*j.hours;state.money+=pay;let m=`${x.name} got home from work: +${fmt$(pay)}`;if(x.job){x.job.perf=clamp(x.job.perf+10,-50,100);const pr=checkPromo(x);if(pr&&pr.startsWith('🎉'))m+='\n'+pr}return m},{away:'At work'});log(`${s.name} left for work`)}
     if(s===a&&h===j.start-1)toast(`⏰ ${s.name} has work at ${fmtH(j.start)}!`)}}
   if((st===2||st===3)&&dw<5&&s.lastSchool!==d){
-    if(s!==a&&h===8&&atHouse(s)){s.lastSchool=d;s.grade=clamp(s.grade+4,0,100);s.skills.logic=Math.min(10,s.skills.logic+.3);s.needs.social=clamp(s.needs.social+20,0,100);log(`${s.name} went to school`)}
+    if(s!==a&&h===8&&atHouse(s)&&!s.busy){s.lastSchool=d;startBusy(s,'At school','🎒',7*60,{social:20,fun:-5,energy:-10},x=>{x.grade=clamp(x.grade+4,0,100);addSkill(x,'logic',.3);return `${x.name} got home from school 🎒`},{away:'At school'});log(`${s.name} left for school`)}
     if(s===a&&h===7)toast(`🎒 School starts at 8 AM for ${s.name}!`)}})}
 function onNewDay(pd){const pdw=dowOf(pd),nd=dayNum();
  state.family.forEach(s=>{
@@ -338,15 +342,16 @@ function defEntry(d){const s=active();const okS=stageOk(d,s);const okR=!d.req||d
 function applyNeeds(s,n){if(n)for(const k in n)s.needs[k]=clamp(s.needs[k]+n[k],0,100)}
 function addSkill(s,k,v){s.skills[k]=Math.min(10,s.skills[k]+v*(1-s.skills[k]/16))}
 function doAct(d){const s=active();
+ if(s.busy){busyToast(s);return}
  if(d.cost&&state.money<d.cost){toast('Not enough money 💸');return}
- if(d.cost)state.money-=d.cost;closeSheet();
+ if(d.cost)state.money-=d.cost;
  const before=SKILLS.map(([k])=>Math.floor(s.skills[k]));
- advance(d.mins||30);applyNeeds(s,d.needs);if(d.skills)for(const k in d.skills)addSkill(s,k,d.skills[k]);
- let msg=d.msg?`${s.name} ${d.msg}`:`${s.name}: ${d.n}`;
- if(d.after){const m=d.after(s);if(m)msg=m}
- const ups=SKILLS.filter(([k],i)=>Math.floor(s.skills[k])>before[i]).map(([k,i,n])=>`${i} ${n} level ${Math.floor(s.skills[k])}!`);
- if(ups.length)msg+='\n⭐ '+ups.join(', ');
- log(msg);toast(msg+warnText(s));save();render()}
+ startBusy(s,d.n,d.i,d.mins||30,d.needs,x=>{if(d.skills)for(const k in d.skills)addSkill(x,k,d.skills[k]);
+  let msg=d.msg?`${x.name} ${d.msg}`:`${x.name} finished: ${d.n}`;
+  if(d.after){const m=d.after(x);if(m)msg=m}
+  const ups=SKILLS.filter(([k],i)=>Math.floor(x.skills[k])>before[i]).map(([k,i,n])=>`${i} ${n} level ${Math.floor(x.skills[k])}!`);
+  if(ups.length)msg+='\n⭐ '+ups.join(', ');return msg});
+ closeSheet();toast(`${d.i||'⏳'} ${s.name}: ${d.n}…`);save();render()}
 function warnText(s){const low=NEEDS.filter(([k])=>s.needs[k]<15).map(([k,i,n])=>`${i} ${n}`);return low.length?`\n⚠️ Low: ${low.join(', ')}`:''}
 
 function itemActions(it){const d=ITEMS[it.id],t=d.tier;
@@ -398,14 +403,11 @@ function workEntry(s){const st=stg(s),d=dayNum(),dw=dowOf(d),h=hour();const out=
   out.push({icon:j.i,label:`Go to work (${L[0]})`,sub:s.lastWorked===d?'Already worked today ✅':!workday?`Day off — works ${j.days.map(x=>DAYS[x]).join(', ')}`:can?`${j.hours}h shift · ${fmt$(L[1]*j.hours)}`:`Shift starts ${fmtH(j.start)} (go ${fmtH(j.start-1)}–${fmtH(j.start+2)})`,disabled:!can,onClick:()=>goWork(s)})}
  if((st===2||st===3)){const can=dw<5&&s.lastSchool!==d&&h>=7&&h<=9;out.push({icon:'🎒',label:'Go to school',sub:s.lastSchool===d?'Already went today ✅':dw>=5?'No school on weekends 🎉':can?'8 AM – 3 PM':'School runs 8 AM – 3 PM (leave 7–9 AM)',disabled:!can,onClick:()=>goSchool(s)})}
  return out}
-function goWork(s){const j=jobById(s.job.id),L=j.lv[s.job.level];closeSheet();const late=hour()>j.start;const mood=avgMood(s);
- if(late)advance(j.hours*60);else{advance((j.start-hour())*60-(state.time%60));advance(j.hours*60)}
- s.lastWorked=dayNum();const pay=L[1]*j.hours;state.money+=pay;applyNeeds(s,{energy:-30,fun:-18,social:10,hygiene:-10});addSkill(s,j.skill,.4);
- const gain=Math.round(12+mood/10-(late?8:0));s.job.perf=clamp(s.job.perf+gain,-50,100);
- let msg=`${s.name} worked as a ${L[0]} and earned ${fmt$(pay)}${late?' (arrived late 😬)':''}`;const p=checkPromo(s);if(p)msg+='\n'+p;
- log(msg);toast(msg+warnText(s));save();render()}
+function goWork(s){if(s.busy){busyToast(s);return}const j=jobById(s.job.id),L=j.lv[s.job.level];const late=state.time%1440>j.start*60+15;const mood=avgMood(s);s.lastWorked=dayNum();
+ startBusy(s,`At work (${L[0]})`,j.i,j.hours*60,{energy:-30,fun:-18,social:10,hygiene:-10},x=>{const pay=L[1]*j.hours;state.money+=pay;addSkill(x,j.skill,.4);if(!x.job)return `${x.name} finished their last shift (+${fmt$(pay)})`;const gain=Math.round(12+mood/10-(late?8:0));x.job.perf=clamp(x.job.perf+gain,-50,100);let msg=`${x.name} finished work as a ${L[0]} and earned ${fmt$(pay)}${late?' (arrived late 😬)':''}`;const pr=checkPromo(x);if(pr)msg+='\n'+pr;return msg},{away:'At work'});
+ closeSheet();toast(`${j.i} ${s.name} headed to work${late?' (late!)':''}`);save();render()}
 function checkPromo(s){const j=jobById(s.job.id);if(s.job.perf>=100&&s.job.level<j.lv.length-1){const need=(s.job.level+1)*2;if(s.skills[j.skill]>=need){s.job.level++;s.job.perf=20;const m=`🎉 ${s.name} got promoted to ${j.lv[s.job.level][0]}!`;log(m);toast(m);return m}return `Needs ${SKILLS.find(x=>x[0]===j.skill)[2]} level ${need} for promotion`}return ''}
-function goSchool(s){closeSheet();const h=hour();if(h<8)advance((8-h)*60-(state.time%60));advance(7*60);s.lastSchool=dayNum();s.grade=clamp(s.grade+6,0,100);addSkill(s,'logic',.5);applyNeeds(s,{social:25,fun:-5,energy:-15});const m=`${s.name} went to school 🎒 (grade ${gradeLetter(s.grade)})`;log(m);toast(m+warnText(s));save();render()}
+function goSchool(s){if(s.busy){busyToast(s);return}s.lastSchool=dayNum();startBusy(s,'At school','🎒',7*60,{social:25,fun:-5,energy:-15},x=>{x.grade=clamp(x.grade+6,0,100);addSkill(x,'logic',.5);return `${x.name} got home from school 🎒 (grade ${gradeLetter(x.grade)})`},{away:'At school'});closeSheet();toast(`🎒 ${s.name} headed to school`);save();render()}
 const gradeLetter=g=>g>=90?'A+':g>=80?'A':g>=70?'B':g>=60?'C':g>=50?'D':'F';
 const avgMood=s=>NEEDS.reduce((a,[k])=>a+s.needs[k],0)/NEEDS.length;
 const moodEmoji=s=>{const m=avgMood(s);return m>=75?'😄':m>=55?'🙂':m>=40?'😐':m>=25?'😟':'😫'};
@@ -426,12 +428,12 @@ function talkMenu(pid){return()=>{const a=active(),p=findPerson(pid);if(!p)retur
  const head=el('div',{class:'card center'},el('div',{class:'big'},avatar(p)),el('h2',{},`${p.name} ${p.last||''}`),el('div',{class:'mut'},`${stageName(p.age)} · ${relLabel(r,pid,a)}${p.trait?' · '+p.trait:''}`),el('div',{},el('span',{class:'pill'},`Friendship ${Math.round(r.f)}`),canRomance(a,p)?el('span',{class:'pill r'},`Romance ${Math.round(r.r)}`):null));
  const out=[head,'Talk about…'];
  Object.entries(TALK).forEach(([cat,c])=>{if(c.rom&&!canRomance(a,p))return;if(stg(a)<2)return;out.push({icon:c.i,label:cat,right:'›',onClick:()=>pushMenu(cat,()=>c.acts.map(x=>talkEntry(pid,cat,x)))})});
- if(isNpc(pid)&&stg(a)>=4&&stg(p)>=4&&state.family.length<8)out.push({icon:'🏡',label:'Ask to move in (roommate)',sub:r.f>=70?'They might say yes!':'Need Friendship 70+',disabled:r.f<70||isHotel(),onClick:()=>{closeSheet();advance(15);if(Math.random()<.75){moveIn(p,'Roommate');}else{r.f-=5;toast(`${p.name} isn't ready to move in`)};save();render()}});
+ if(isNpc(pid)&&stg(a)>=4&&stg(p)>=4&&state.family.length<8)out.push({icon:'🏡',label:'Ask to move in (roommate)',sub:r.f>=70?'They might say yes!':'Need Friendship 70+',disabled:r.f<70||isHotel(),onClick:()=>{if(a.busy){busyToast(a);return}startBusy(a,`Asking ${p.name} to move in`,'🏡',15,null,()=>{if(Math.random()<.75){moveIn(p,'Roommate');return `🏡 ${p.name} moved in as a roommate!`}r.f-=5;return `${p.name} isn't ready to move in`});closeSheet();save();render()}});
  return out}}
 function talkEntry(pid,cat,[n,fd,minF,rd,minR,special]){const a=active(),p=findPerson(pid),r=rel(a,pid);const c=TALK[cat];
  const risky=r.f<minF||(minR&&r.r<minR);
  return{icon:c.i,label:n,sub:c.mean?'Lowers friendship':risky?'⚠️ Risky — they might not like it':'Should go well',onClick:()=>doTalk(pid,cat,n,fd,minF,rd||0,minR||0,special)}}
-function doTalk(pid,cat,n,fd,minF,rd,minR,special){const a=active(),p=findPerson(pid),r=rel(a,pid);closeSheet();advance(15);
+function doTalk(pid,cat,n,fd,minF,rd,minR,special){const a=active(),p=findPerson(pid),r=rel(a,pid);if(a.busy){busyToast(a);return}startBusy(a,`Talking to ${p.name}`,'💬',15,null,()=>{
  const tmod=TRAITS[p.trait]||0;let chance=.78+(r.f-Math.max(minF,0))/150+a.skills.charisma*.02+tmod;if(minR)chance+=(r.r-minR)/120;if(p.trait==='Romantic'&&rd)chance+=.1;chance=clamp(chance,.2,.97);
  const ok=TALK[cat].mean||Math.random()<chance;let msg;
  if(ok){r.f=clamp(r.f+fd*(1+a.skills.charisma/25),-100,100);r.r=clamp(r.r+rd,0,100);applyNeeds(a,{social:TALK[cat].mean?4:12,fun:3});addSkill(a,'charisma',.12);
@@ -440,7 +442,7 @@ function doTalk(pid,cat,n,fd,minF,rd,minR,special){const a=active(),p=findPerson
   if(special==='propose'){if(isNpc(pid)){a.partnerId=pid;a.married=true;moveIn(p,'Partner',a);msg=`💍 ${p.name} said YES! They got married and moved in!`}else{a.partnerId=pid;p.partnerId=a.id;a.married=p.married=true;msg=`💍 ${p.name} said YES! They're married!`}}
  }else{r.f=clamp(r.f-5,-100,100);if(rd)r.r=clamp(r.r-4,0,100);applyNeeds(a,{social:3});msg=`${a.name}: "${n}" — ${p.name} wasn't into it 😬`}
  if(!isNpc(pid)&&state.family.includes(p)){const r2=rel(p,a.id);r2.f=r.f;r2.r=r.r;applyNeeds(p,{social:8})}
- log(msg);toast(msg+warnText(a));save();render()}
+ return msg});closeSheet();toast(`💬 ${a.name} is talking to ${p.name}…`);save();render()}
 function moveIn(npc,role,partner){const f=famOf(npc);f.members=f.members.filter(m=>m.id!==npc.id);
  const s=newSim(npc.name,npc.g,npc.age,role);s.id=npc.id.replace(/^n/,'s');s.trait=npc.trait;
  state.family.forEach(m=>{if(m.rels[npc.id]){m.rels[s.id]=m.rels[npc.id];delete m.rels[npc.id];s.rels[m.id]={...m.rels[s.id]}}else{m.rels[s.id]={f:20,r:0};s.rels[m.id]={f:20,r:0}}});
@@ -456,21 +458,21 @@ function npcStatus(n){const h=hour(),d=dayNum(),dw=dowOf(d),st=stageIdx(n.age);
  if(hash(n.id+':'+d+':'+h)<.42){const vs=WORLDS[n.wid].venues.filter(v=>venueOpen(v)&&!VENUES[v].shop&&(!VENUES[v].adult||st>=4));if(vs.length)return'out:'+vs[Math.floor(hash(n.id+'v'+d+':'+h)*vs.length)]}
  return'home'}
 function peopleAt(vid){return state.worlds[state.world].fams.flatMap(f=>f.members).filter(n=>npcStatus(n)==='out:'+vid)}
-function goTo(loc,label){const s=active();if(stg(s)<=1){toast('Babies & toddlers need an adult to take them places');return}closeSheet();advance(20);s.loc=loc;tab='home';log(`${s.name} went to ${label}`);save();render();window.scrollTo(0,0)}
-function goHome(){const s=active();closeSheet();advance(20);s.loc={type:'home'};tab='home';save();render()}
-function knock(fid){const s=active();const f=state.worlds[state.world].fams.find(x=>x.id===fid);closeSheet();advance(20);
- const home=f.members.filter(m=>npcStatus(m)==='home');
- if(!home.length){toast(`🚪 No one answered at the ${f.last} house — nobody's home`);log(`${s.name} knocked at the ${f.last} house — no answer`);save();render();return}
- const best=Math.max(...home.map(m=>rel(s,m.id).f));const h=hour();let ch=best>=40?.95:best>=15?.7:.3;if(h>=22||h<8)ch*=.25;
- if(Math.random()<ch){s.loc={type:'visit',fid};home.forEach(m=>{const r=rel(s,m.id);r.f=clamp(r.f+3,-100,100)});tab='home';const m=`${home[0].name} ${home[0].last} welcomed ${s.name} inside 🏡`;log(m);toast(m)}
- else{const why=best<15?"they don't really know you":(h>=22||h<8)?"it's too late for visitors":'they\'re busy right now';const m=`🚪 The ${f.last}s turned ${s.name} away — ${why}`;log(m);toast(m)}
- save();render()}
+function goTo(loc,label){const s=active();if(stg(s)<=1){toast('Babies & toddlers need an adult to take them places');return}if(s.busy){busyToast(s);return}startBusy(s,`Heading to ${label}`,'🚶',20,null,x=>{x.loc=loc;return `📍 ${x.name} arrived at ${label}`});closeSheet();tab='home';save();render();window.scrollTo(0,0)}
+function goHome(){const s=active();if(s.busy){busyToast(s);return}startBusy(s,'Heading home','🏠',20,null,x=>{x.loc={type:'home'};return `🏠 ${x.name} got home`});closeSheet();tab='home';save();render()}
+function knock(fid){const s=active();const f=state.worlds[state.world].fams.find(x=>x.id===fid);if(s.busy){busyToast(s);return}
+ startBusy(s,`Walking to the ${f.last} house`,'🚪',20,null,x=>{const home=f.members.filter(m=>npcStatus(m)==='home');
+  if(!home.length)return `🚪 No one answered at the ${f.last} house — nobody's home`;
+  const best=Math.max(...home.map(m=>rel(x,m.id).f));const h=hour();let ch=best>=40?.95:best>=15?.7:.3;if(h>=22||h<8)ch*=.25;
+  if(Math.random()<ch){x.loc={type:'visit',fid};home.forEach(m=>{const r=rel(x,m.id);r.f=clamp(r.f+3,-100,100)});return `${home[0].name} ${home[0].last} welcomed ${x.name} inside 🏡`}
+  const why=best<15?"they don't really know you":(h>=22||h<8)?"it's too late for visitors":"they're busy right now";return `🚪 The ${f.last}s turned ${x.name} away — ${why}`});
+ closeSheet();tab='home';save();render()}
 
 /* ============ travel ============ */
 function routeCost(a,b){return Math.max(WORLDS[a].travel,WORLDS[b].travel)}
 function travelTo(wid,hid){const n=state.family.length;const cost=routeCost(state.world,wid)*n+(hid?HOTELS[hid].night:0);
  if(state.money<cost){toast('Not enough money for this trip 💸');return}
- closeSheet();state.money-=cost;advance(180);state.world=wid;
+ closeSheet();state.money-=cost;state.family.forEach(x=>{x.busy=null;delete BUSYFN[x.id]});advance(180);state.world=wid;
  state.hotel=hid?makeHouse(HOTELS[hid],{wid,hid}):null;state.family.forEach(s=>s.loc={type:'home'});tab='home';
  const m=hid?`✈️ The family arrived in ${WORLDS[wid].n} and checked into ${HOTELS[hid].n}!`:`🏠 Back home in ${WORLDS[wid].n}`;log(m);toast(m);save();render();window.scrollTo(0,0)}
 function goHomeWorld(free){if(!free){travelTo(state.homeWorld,null);return}state.world=state.homeWorld;state.hotel=null;state.family.forEach(s=>s.loc={type:'home'})}
@@ -505,7 +507,7 @@ function characterMenu(){const s=active();return()=>{const st=stg(s);const out=[
 function roomActs(r){const out=[];if(r.type==='kitchen'&&!isHotel())out.push({n:'Order takeout',i:'📱',menu:()=>takeoutMenu('Takeout')});
  r.items.forEach(it=>{itemActions(it).forEach(a=>out.push(Object.assign({},a,{sub:a.sub||((ITEMS[it.id].n)+' · '+needSummary(a))})))});return out}
 function callMenu(){const s=active();const known=allNpcs().filter(n=>(s.rels[n.id]||{f:0}).f>=10);if(!known.length)return[el('div',{class:'card mut'},'You don\'t know anyone well enough to call yet. Go meet people around town!')];
- return known.map(n=>({icon:avatar(n),label:`${n.name} ${n.last}`,sub:relLabel(s.rels[n.id],n.id,s)+` · ${WORLDS[n.wid].n}`,onClick:()=>{closeSheet();advance(20);const r=rel(s,n.id);r.f=clamp(r.f+3,-100,100);applyNeeds(s,{social:15,fun:4});const m=`📞 ${s.name} had a nice phone call with ${n.name}`;log(m);toast(m);save();render()}}))}
+ return known.map(n=>({icon:avatar(n),label:`${n.name} ${n.last}`,sub:relLabel(s.rels[n.id],n.id,s)+` · ${WORLDS[n.wid].n}`,onClick:()=>{if(s.busy){busyToast(s);return}startBusy(s,`On the phone with ${n.name}`,'📞',20,{social:15,fun:4},x=>{const r=rel(x,n.id);r.f=clamp(r.f+3,-100,100);return `📞 ${x.name} had a nice phone call with ${n.name}`});closeSheet();save();render()}}))}
 function familyInteract(oid){return()=>{const s=active(),o=state.family.find(x=>x.id===oid);if(!o)return[];const ot=stg(o),out=[];
  if(ot<=1){out.push('Care');const crib=hasType('crib'),bed=hasType('bed');
   out.push({n:ot===0?'Feed a bottle':'Feed a meal',i:'🍼',mins:15,cost:4,min:3,after:x=>{applyNeeds(o,{hunger:70});applyNeeds(x,{social:4});return `${x.name} fed ${o.name} 🍼`}});
@@ -593,9 +595,33 @@ function adoptMenu(){if(petsAway()||!state.home)return[el('div',{class:'card mut
  const out=[el('div',{class:'card'},el('div',{style:'font-weight:800'},`🧺 Pet beds at home: ${beds} · Pets: ${state.pets.length}`),el('div',{class:'mut'},free>0?`You have room for ${free} more pet${free>1?'s':''}.`:'Every pet needs its own pet bed. Buy one in Build mode → Pets first.'))];
  Object.entries(PETS).forEach(([sp,S])=>out.push({icon:S.i,label:S.n,sub:`${S.walk?'Needs walks · ':''}${S.tricks.length} trick${S.tricks.length>1?'s':''} to learn`,right:fmt$(S.fee),disabled:free<1,onClick:()=>{const trait=R(Object.keys(PTRAITS));pushMenu(`Adopt a ${S.n.toLowerCase()}`,()=>[el('div',{class:'card center'},el('div',{class:'big'},S.i),el('div',{class:'mut'},`This ${S.n.toLowerCase()} is ${trait}`)),inputCard('Name your new pet',R(PET_NAMES),v=>adopt(sp,v,trait),`Adopt for ${fmt$(S.fee)}`)])}}));
  return out}
-function adopt(sp,name,trait){const S=PETS[sp];if(state.money<S.fee){toast('Not enough money 💸');return}state.money-=S.fee;advance(30);
+function adopt(sp,name,trait){const S=PETS[sp];if(state.money<S.fee){toast('Not enough money 💸');return}state.money-=S.fee;
  state.pets.push({id:'p'+uid(),name,sp,trait,needs:{hunger:70,energy:80,fun:60,hygiene:70,bladder:80,love:50},bond:10,tricks:[],neglect:0});
  closeSheet();const m=`🐾 ${active().name} adopted ${name} the ${S.n.toLowerCase()}! ${S.i} They're waiting at home.`;log(m);toast(m);save();render()}
+
+/* ============ real-time clock & busy actions ============ */
+const SPEEDS=[0,1,2,4,10,30];
+let lastTick=performance.now(),acc=0,prevSpeed=1,needRender=false;
+const BUSYFN={};
+function startBusy(s,label,icon,mins,needs,done,opts={}){mins=Math.max(1,Math.round(mins));
+ s.busy={label,icon,mins,start:state.time,end:state.time+mins,needs:needs||null,away:opts.away||null,prevLoc:opts.away?s.loc:null};
+ if(opts.away)s.loc={type:'away',label:opts.away};BUSYFN[s.id]=done;return true}
+function tickBusy(step){state.family.forEach(s=>{const b=s.busy;if(!b)return;if(b.needs)for(const k in b.needs)s.needs[k]=clamp(s.needs[k]+b.needs[k]*step/b.mins,0,100);if(state.time>=b.end)finishBusy(s)})}
+function finishBusy(s){const b=s.busy;s.busy=null;if(b.away&&b.prevLoc)s.loc=b.prevLoc;const fn=BUSYFN[s.id];delete BUSYFN[s.id];
+ let msg;try{msg=fn?fn(s):`${s.name} finished: ${b.label}`}catch(e){console.error(e);msg=`${s.name} finished: ${b.label}`}
+ if(msg){log(msg);toast(msg+warnText(s))}needRender=true;save()}
+function busyToast(s){toast(`${s.name} is busy (${s.busy.label}). Wait, skip, or cancel first.`)}
+function skipBusy(s){if(!s.busy)return;advance(s.busy.end-state.time);if(s.busy)finishBusy(s);save();render()}
+function cancelBusy(s){const b=s.busy;if(!b)return;s.busy=null;delete BUSYFN[s.id];if(b.away&&b.prevLoc)s.loc=b.prevLoc;toast(`${s.name} stopped: ${b.label}`);save();render()}
+function setSpeed(v){if(!state)return;if(v===0&&state.speed>0)prevSpeed=state.speed;state.speed=v;save();updateHeader()}
+setInterval(()=>{const now=performance.now();const dt=Math.min(1000,now-lastTick);lastTick=now;
+ if(!state||!state.home||!state.speed||document.hidden)return;
+ acc+=dt/1000*state.speed;const m=Math.floor(acc);if(m<=0)return;acc-=m;const h0=Math.floor(state.time/60);
+ try{advance(m)}catch(e){console.error(e);setSpeed(0);toast('Simulation error: '+e.message);return}
+ if(needRender||Math.floor(state.time/60)!==h0){needRender=false;render();if(sheetStack.length&&!document.querySelector('#shBody input'))refreshSheet()}else updateHeader()},100);
+setInterval(()=>{if(state&&state.home)save()},15000);
+document.addEventListener('visibilitychange',()=>{if(!state)return;if(document.hidden)save();else lastTick=performance.now()});
+document.addEventListener('keydown',e=>{if(!state||!state.home||/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;if(e.key===' '){e.preventDefault();setSpeed(state.speed?0:prevSpeed||1)}if(e.key>='1'&&e.key<='5')setSpeed(SPEEDS[+e.key])});
 
 /* ============ rendering ============ */
 function render(){const y=window.scrollY;const app=$('#app');app.innerHTML='';
@@ -603,15 +629,23 @@ function render(){const y=window.scrollY;const app=$('#app');app.innerHTML='';
  if(!state.home){app.append(renderPickHome());return}
  app.append(renderHeader(),el('main',{},renderTab()),renderNav());window.scrollTo(0,y)}
 function needBars(s,compact){return el('div',{class:'needs'},NEEDS.map(([k,i,n])=>{const v=Math.round(s.needs[k]);const c=v>=60?'var(--acc)':v>=30?'var(--warn)':'var(--bad)';return el('div',{class:'need'},`${i} ${compact?'':n}`,el('span',{},v),el('div',{class:'bar'},el('i',{style:`width:${v}%;background:${c}`})))}))}
-function renderHeader(){const s=active();const W=WORLDS[state.world];const loc=s.loc.type==='home'?(isHotel()?HOTELS[state.hotel.hid].n:'Home'):s.loc.type==='venue'?VENUES[s.loc.id].n:s.loc.type==='visit'?`${(state.worlds[state.world].fams.find(f=>f.id===s.loc.fid)||{}).last} house`:'';
+function fmtLeft(m){m=Math.max(0,Math.ceil(m));return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`}
+function busyBox(s){const b=s.busy;if(!b)return null;const pct=clamp((state.time-b.start)/b.mins*100,0,100);
+ return el('div',{class:'busy'},el('div',{style:'display:flex;justify-content:space-between;gap:8px;font-weight:800;font-size:13px'},el('span',{},`${b.icon||'⏳'} ${b.label}…`),el('span',{class:'mut'},`${fmtLeft(b.end-state.time)} left`)),
+  el('div',{class:'bar'},el('i',{style:`width:${pct}%;background:var(--blue)`})),
+  el('div',{style:'display:flex;gap:6px;margin-top:6px'},el('button',{class:'btn ghost',style:'padding:5px 10px;font-size:12px',onclick:()=>skipBusy(s)},'⏩ Skip to end'),el('button',{class:'btn gray',style:'padding:5px 10px;font-size:12px',onclick:()=>cancelBusy(s)},'✕ Cancel')))}
+function renderHeader(){const s=active();const W=WORLDS[state.world];const loc=s.loc.type==='home'?(isHotel()?HOTELS[state.hotel.hid].n:'Home'):s.loc.type==='venue'?VENUES[s.loc.id].n:s.loc.type==='visit'?`${(state.worlds[state.world].fams.find(f=>f.id===s.loc.fid)||{}).last} house`:s.loc.type==='away'?s.loc.label:'';
  return el('header',{},
-  el('div',{class:'topline'},el('div',{},`${DAYS[dowOf(dayNum())]} · Day ${dayNum()} · ${clock()}`,el('div',{class:'loc'},`${W.i} ${W.n} · 📍 ${loc}`)),el('div',{class:'money'+(state.money<0?' neg':'')},fmt$(state.money))),
-  el('div',{class:'strip',style:'margin-top:6px'},state.family.map(m=>el('div',{class:'av'+(m.id===state.activeId?' on':''),onclick:()=>{if(m.id===state.activeId)pushMenu(m.name,characterMenu());else{state.activeId=m.id;save();render()}}},el('div',{class:'e'},avatar(m)),m.name,el('div',{},moodEmoji(m))))),
-  el('div',{class:'card',style:'margin:4px 0 6px'},el('div',{class:'actbtn'},el('div',{style:'font-weight:900'},`${avatar(s)} ${s.name}`,el('span',{class:'mut'},` · ${stageName(s.age)}`)),el('button',{class:'btn',style:'padding:7px 12px',onclick:()=>pushMenu(s.name,characterMenu())},'▶ Actions')),needBars(s,false)))}
+  el('div',{class:'topline'},el('div',{},`${DAYS[dowOf(dayNum())]} · Day ${dayNum()} · ${clock()}`,state.speed?null:el('span',{class:'pill o',style:'margin-left:6px'},'Paused'),el('div',{class:'loc'},`${W.i} ${W.n} · 📍 ${loc}`)),el('div',{class:'money'+(state.money<0?' neg':'')},fmt$(state.money))),
+  el('div',{class:'speeds'},SPEEDS.map(v=>el('button',{class:state.speed===v?'on':'',onclick:()=>setSpeed(v)},v?v+'x':'❚❚'))),
+  el('div',{class:'strip',style:'margin-top:6px'},state.family.map(m=>el('div',{class:'av'+(m.id===state.activeId?' on':''),onclick:()=>{if(m.id===state.activeId)pushMenu(m.name,characterMenu());else{state.activeId=m.id;save();render()}}},el('div',{class:'e'},avatar(m)),m.name,el('div',{},m.busy?(m.busy.icon||'⏳'):moodEmoji(m))))),
+  el('div',{class:'card',style:'margin:4px 0 6px'},el('div',{class:'actbtn'},el('div',{style:'font-weight:900'},`${avatar(s)} ${s.name}`,el('span',{class:'mut'},` · ${stageName(s.age)}`)),el('button',{class:'btn',style:'padding:7px 12px',onclick:()=>pushMenu(s.name,characterMenu())},'▶ Actions')),busyBox(s),needBars(s,false)))}
+function updateHeader(){const h=document.querySelector('header');if(h&&state&&state.home)h.replaceWith(renderHeader())}
 function renderNav(){const t=[['home','🏠','Home'],['map','🗺️','Map'],['build','🔨','Build'],['family','👪','Family'],['more','☰','More']];return el('nav',{},el('div',{class:'in'},t.map(([id,i,n])=>el('button',{class:tab===id?'on':'',onclick:()=>{tab=id;render();window.scrollTo(0,0)}},el('b',{},i),n))))}
 function renderTab(){return{home:renderHome,map:renderMap,build:renderBuild,family:renderFamily,more:renderMore}[tab]()}
 
 function renderHome(){const s=active();
+ if(s.loc.type==='away')return el('div',{class:'card center'},el('div',{class:'big'},s.busy?(s.busy.icon||'💼'):'💼'),el('h2',{},`${s.name} is ${s.loc.label.toLowerCase()}`),el('div',{class:'mut'},s.busy?`Back in ${fmtLeft(s.busy.end-state.time)}`:''),el('div',{class:'mut',style:'margin-top:8px'},'Switch to another family member above, or speed up time.'));
  if(s.loc.type==='venue')return renderVenue(s.loc.id);
  if(s.loc.type==='visit')return renderVisit(s.loc.fid);
  const h=house();if(!h)return el('div',{class:'card'},'You have no place to stay here.');
@@ -622,7 +656,7 @@ function renderHome(){const s=active();
   el('div',{class:'sec'},'Rooms — tap one'),
   el('div',{class:'rooms'},h.rooms.map(r=>{const who=famHome().filter(()=>false);return el('div',{class:'room',onclick:()=>pushMenu(r.name,roomMenu(r.id))},el('div',{class:'rn'},`${(ROOM_TYPES[r.type]||['','🚪'])[1]} ${r.name}`),el('div',{class:'ri'},r.items.map(i=>ITEMS[i.id].i).join('')||el('span',{class:'mut'},'empty')),el('div',{class:'who'},`${r.items.length} item${r.items.length===1?'':'s'}`))})),
   el('div',{class:'sec'},'Who\'s here'),
-  el('div',{class:'card',style:'padding:2px 12px'},famHome().map(m=>rowNode({icon:avatar(m),label:m.name+(m.id===state.activeId?' (you)':''),sub:`${stageName(m.age)} · ${moodEmoji(m)} · ${lowNeeds(m)}`,right:m.id===state.activeId?'':'›',onClick:()=>{if(m.id===state.activeId)pushMenu(m.name,characterMenu());else pushMenu(m.name,familyInteract(m.id))}})),famHome().length?null:el('div',{class:'mut',style:'padding:10px 0'},'Nobody is home.')),
+  el('div',{class:'card',style:'padding:2px 12px'},famHome().map(m=>rowNode({icon:avatar(m),label:m.name+(m.id===state.activeId?' (you)':''),sub:m.busy?`${m.busy.icon||'⏳'} ${m.busy.label}…`:`${stageName(m.age)} · ${moodEmoji(m)} · ${lowNeeds(m)}`,right:m.id===state.activeId?'':'›',onClick:()=>{if(m.id===state.activeId)pushMenu(m.name,characterMenu());else pushMenu(m.name,familyInteract(m.id))}})),famHome().length?null:el('div',{class:'mut',style:'padding:10px 0'},'Nobody is home.')),
   hotel?null:el('div',{class:'sec'},'Pets'),
   hotel?null:(state.pets.length?el('div',{class:'card',style:'padding:2px 12px'},state.pets.map(p=>rowNode(petRow(p)))):el('div',{class:'card mut'},'No pets yet 🐾 Buy a pet bed (Build → Pets), then adopt one at the pet shelter on the Map.')))}
 function lowNeeds(m){const l=NEEDS.filter(([k])=>m.needs[k]<30).map(([k,i])=>i);return l.length?`needs: ${l.join(' ')}`:'doing fine'}
@@ -708,7 +742,7 @@ function renderMore(){return el('div',{},
   'Household',{icon:'💵',label:'Money',sub:`Weekly bills on Mondays ≈ ${fmt$(Math.round(homeValue()*.012+itemsValue()*.01))}`,right:fmt$(state.money)},{icon:'📔',label:'Family diary',sub:'Everything that happened',right:'›',onClick:()=>pushMenu('Diary',()=>[el('div',{class:'card'},state.log.length?state.log.map(l=>el('div',{class:'logline'},el('b',{},l.t),l.m)):el('div',{class:'mut'},'Nothing yet.'))])},
   'Game',{icon:'❓',label:'How to play',right:'›',onClick:()=>pushMenu('How to play',howTo)},{icon:'🔄',label:'Start a new game',sub:'Erases this family',onClick:()=>pushMenu('New game?',()=>[confirmCard('Start over? This family and their home will be gone for good.','Start a new game',()=>{try{localStorage.removeItem(SAVE_KEY)}catch(e){}state=null;draft=null;tab='home';closeSheet();render()},true)])}]),
  el('div',{class:'mut center',style:'margin-top:14px'},'Progress saves automatically in this browser.'))}
-function howTo(){return[el('div',{class:'card',html:`<p><b>Needs</b> drop over time. Keep them up by doing things — tap <b>▶ Actions</b> or your character's picture for a list sorted by room.</p><p><b>Time</b> only moves when you do something. Every action takes minutes or hours.</p><p><b>Rooms</b>: tap a room on the Home tab to use what's in it, or rename it (e.g. "Mia's Room").</p><p><b>Build mode</b>: buy furniture & upgrades (⭐⭐⭐ = better), place them in any room, sell old stuff for half price, or build new rooms.</p><p><b>Work</b>: get a job in the Family tab. Go to work during the shift window. Good mood + skills = promotions. Skipping work hurts performance.</p><p><b>Map</b>: visit places, meet people, tap someone to talk. Knock on neighbors' doors — strangers may turn you away, and nobody answers if they're out.</p><p><b>Romance</b>: adults can flirt, become partners, propose (they move in!) and try for a baby in a bed.</p><p><b>Ages</b>: everyone has a birthday every 7 days. Babies need an adult to feed, bathe and put them to bed in a crib.</p><p><b>Vacations</b>: travel from the More tab, check into a hotel, buy souvenirs for your inventory.</p><p><b>Pets</b>: buy a pet bed (Build → Pets), then adopt a dog, cat, bunny, hamster or parrot at the pet shelter on the Map. Pets have needs: feed, cuddle, bathe and play with them, walk your dog, teach tricks, and buy toys. A neglected pet gets taken back to the shelter. While you travel, a pet sitter looks after them for $15 a night.</p><p><b>Bills</b> are due every Monday.</p>`})]}
+function howTo(){return[el('div',{class:'card',html:`<p><b>Needs</b> drop over time. Keep them up by doing things — tap <b>▶ Actions</b> or your character's picture for a list sorted by room.</p><p><b>Time</b> runs on its own, like Prison Authority: at 1x, 1 real second = 1 in-game minute. Use ❚❚ to pause and 2x–30x to speed up (keyboard: Space, 1–5). Actions take time to finish. Your character shows a progress bar, and you can ⏩ skip to the end or ✕ cancel. Each family member can be busy with their own thing at the same time.</p><p><b>Rooms</b>: tap a room on the Home tab to use what's in it, or rename it (e.g. "Mia's Room").</p><p><b>Build mode</b>: buy furniture & upgrades (⭐⭐⭐ = better), place them in any room, sell old stuff for half price, or build new rooms.</p><p><b>Work</b>: get a job in the Family tab. Go to work during the shift window. Good mood + skills = promotions. Skipping work hurts performance.</p><p><b>Map</b>: visit places, meet people, tap someone to talk. Knock on neighbors' doors — strangers may turn you away, and nobody answers if they're out.</p><p><b>Romance</b>: adults can flirt, become partners, propose (they move in!) and try for a baby in a bed.</p><p><b>Ages</b>: everyone has a birthday every 7 days. Babies need an adult to feed, bathe and put them to bed in a crib.</p><p><b>Vacations</b>: travel from the More tab, check into a hotel, buy souvenirs for your inventory.</p><p><b>Pets</b>: buy a pet bed (Build → Pets), then adopt a dog, cat, bunny, hamster or parrot at the pet shelter on the Map. Pets have needs: feed, cuddle, bathe and play with them, walk your dog, teach tricks, and buy toys. A neglected pet gets taken back to the shelter. While you travel, a pet sitter looks after them for $15 a night.</p><p><b>Bills</b> are due every Monday.</p>`})]}
 
 /* ============ new game ============ */
 function renderCreate(){if(!draft)draft={last:'',members:[{name:'',g:'f',stage:4,role:'Head'}]};
@@ -730,7 +764,7 @@ function startGame(){const d=draft;if(!d.last.trim()){toast('Give your family a 
  fam.forEach(a=>fam.forEach(b=>{if(a!==b){const close=(a.role==='Child'||b.role==='Child'||a.role==='Parent'||b.role==='Parent');a.rels[b.id]={f:close?70:50,r:0}}}));
  const head=fam[0],p=fam.find(x=>x.role==='Partner');if(p){head.partnerId=p.id;p.partnerId=head.id;head.married=p.married=true;head.rels[p.id]={f:80,r:80};p.rels[head.id]={f:80,r:80}}
  const used=new Set([d.last.trim()]);const worlds={};Object.keys(WORLDS).forEach(w=>worlds[w]=genWorld(w,used));
- state={v:1,pets:[],familyName:d.last.trim(),family:fam,activeId:fam[0].id,money:30000,time:480,world:'willow',homeWorld:'willow',home:null,hotel:null,inv:[],worlds,log:[]};
+ state={v:1,pets:[],speed:1,familyName:d.last.trim(),family:fam,activeId:fam[0].id,money:30000,time:480,world:'willow',homeWorld:'willow',home:null,hotel:null,inv:[],worlds,log:[]};
  render();window.scrollTo(0,0)}
 function renderPickHome(){const wrap=el('div',{style:'padding:12px 12px 40px'});
  wrap.append(el('h1',{},'🔑 Choose a home'),el('div',{class:'mut',style:'margin:0 4px 6px'},`Willow Creek · You have ${fmt$(state.money)}. Leftover money buys furniture.`));
@@ -740,7 +774,7 @@ function renderPickHome(){const wrap=el('div',{style:'padding:12px 12px 40px'});
    el('button',{class:'btn full',disabled:can?null:'disabled',onclick:()=>{state.money-=H.p;state.home=makeHouse(H,{id:h,addr:`${100+Math.floor(Math.random()*800)} ${R(WORLDS.willow.streets)}`});log(`The ${state.familyName} family moved into ${H.n}!`);save();render();toast(`🏡 Welcome home to ${H.n}!`)}},can?`Buy for ${fmt$(H.p)}`:'Can\'t afford yet')))});
  return wrap}
 
-state=load();if(state&&!state.pets)state.pets=[];render();
+state=load();if(state){if(!state.pets)state.pets=[];prevSpeed=state.speed||1;state.speed=0;state.family.forEach(x=>{if(x.busy&&x.busy.away&&!x.busy.prevLoc)x.busy=null})}render();if(state&&state.home)toast('⏸ Paused. Tap 1x to start the clock');
 </script>
 </body>
 </html>
