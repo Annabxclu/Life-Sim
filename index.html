@@ -346,7 +346,7 @@ const itemsValue=()=>state.home?state.home.rooms.reduce((a,r)=>a+r.items.reduce(
 function advance(mins){let rem=mins;while(rem>0){const step=Math.min(rem,60-(state.time%60));const pd=dayNum();state.time+=step;rem-=step;decayAll(step);tickBusy(step);if(state.time%60===0)onHour();if(dayNum()!==pd)onNewDay(pd)}}
 function decayAll(step){const a=active();state.family.forEach(s=>{const st=stg(s);const mult=st<=1?.75:1;for(const k in DECAY){let r=DECAY[k]*mult*(s.sick&&(k==='energy'||k==='fun')?1.5:1)*traitDecay(s,k)*(k==='fun'&&s.grief>=dayNum()?1.5:1)*(k==='hygiene'&&(state.laundry||0)>=60&&!isHotel()?1.25:1);if(st===0&&k==='hunger')r=7;s.needs[k]=clamp(s.needs[k]-r*step/60,0,100)}if(s!==a&&st>=2&&atHouse(s)&&!s.busy&&state.autonomy!=='off')autonomy(s);if(s===a&&state.autonomy==='full'&&st>=2&&atHouse(s)&&!s.busy)autoAct(s)});if(state.pets)petDecay(step)}
 function autonomy(s){const n=s.needs;
- if(n.hunger<30&&state.fridge&&state.fridge.length&&hasType('fridge')&&!isHotel()){const f=state.fridge[0];n.hunger=clamp(n.hunger+f.hunger,0,100);f.serv--;if(f.serv<=0)state.fridge.shift()}else if(n.hunger<30&&(hasType('fridge')||hasType('stove'))&&state.money>=5){n.hunger=75;state.money-=5}
+ if(n.hunger<30&&state.fridge&&state.fridge.length&&!isHotel()){const f=state.fridge[0];log(`🥡 ${s.name} ate leftover ${f.name}`);n.hunger=clamp(n.hunger+f.hunger,0,100);f.serv--;if(f.serv<=0)state.fridge.shift()}else if(n.hunger<30&&(hasType('fridge')||hasType('stove'))&&state.money>=5){n.hunger=75;state.money-=5}
  if(n.energy<25&&(hasType('bed')||hasType('couch')))n.energy=80;
  if(n.hygiene<30&&(hasType('shower')||hasType('tub')))n.hygiene=85;
  if(n.bladder<30&&hasType('toilet'))n.bladder=100;
@@ -535,7 +535,7 @@ function characterMenu(){const s=active();return()=>{const st=stg(s);const out=[
   if(state.pets.length&&!isHotel()){out.push('Pets');state.pets.forEach(p=>out.push(petRow(p)))}}
  out.push('Self');workEntry(s).forEach(e=>out.push(e));out.push(...healthEntries(s));
  if(st>=2)out.push({icon:'🎒',label:`Backpack (${bagCount()})`,sub:'Snacks, medicine, books, gifts',right:'›',onClick:()=>pushMenu('Backpack',bagMenu)});
- out.push(...carEntries(s));out.push(...uniEntries(s));out.push(...laundryEntries(s));
+ out.push(...carEntries(s));out.push(...uniEntries(s));out.push(...laundryEntries(s));out.push(...leftoverEntries(s));
  if(st>=2&&atHouse(s))out.push({n:isHotel()?'Order room service':'Order takeout',i:'📱',menu:()=>takeoutMenu(isHotel()?'Room service':'Takeout')});
  if(st>=2)out.push({icon:'📞',label:'Call someone',right:'›',onClick:()=>pushMenu('Call someone',callMenu)});
  out.push({n:'Wait an hour',i:'⏳',mins:60,min:0,msg:'passed the time'});
@@ -972,7 +972,7 @@ function leftoverActs(){if(isHotel()||!state.fridge)return[];return state.fridge
 function cookMenu(t){return Object.entries(RECIPES).map(([cat,c])=>({n:cat,i:c.i,menu:()=>{const eaters=famHome().filter(x=>stg(x)>=1).length||1;return[`Serves everyone at home (${eaters})`].concat(c.r.map(([n,min,mins,hung])=>{const base=4+min*2;
  const mk=extra=>({n:extra?'Cook extra & save leftovers':'Cook & serve now',i:extra?'🥡':c.i,mins:mins+(extra?10:0),cost:base*(eaters+(extra?3:0)),sub:extra?`Feeds ${eaters} now + 3 servings for the fridge`:`+${hung} 🍔 each · ${mins}m`,req:()=>active().skills.cooking>=min&&(!extra||hasType('fridge')),why:extra&&!hasType('fridge')?'Needs a fridge':`Needs Cooking level ${min}`,skills:{cooking:.4+min*.06},
   after:s=>{const q=Math.floor(s.skills.cooking)+t*2;const burn=Math.random()<Math.max(0,.3-(s.skills.cooking-min)*.12);if(burn&&Math.random()<.3)makeSick(s,'food');const gain=burn?Math.round(hung*.4):hung+q*2;famHome().filter(x=>stg(x)>=1).forEach(x=>applyNeeds(x,{hunger:gain,fun:burn?-5:4}));if(extra&&!burn)addLeftovers(n,3,gain);
-   return burn?`🔥 ${s.name} burnt the ${n}... it's edible-ish`:`${s.name} cooked ${n} ${q>=8?'— absolutely delicious! 🤩':'— yum!'}${extra?' Leftovers are in the fridge 🥡':''}`}});
+   return burn?`🔥 ${s.name} burnt the ${n}... it's edible-ish`:`${s.name} cooked ${n} ${q>=8?'— absolutely delicious! 🤩':'— yum!'}${extra?' Leftovers are in the fridge 🥡 (Actions → Self → Leftovers)':''}`}});
  return{n,i:c.i,sub:`+${hung} 🍔 · ${mins}m${min?` · Cooking ${min}+`:''}`,req:()=>active().skills.cooking>=min,why:`Needs Cooking level ${min}`,menu:()=>[mk(false),mk(true)]}}))}}))}
 
 /* ============ task queue ============ */
@@ -1132,7 +1132,7 @@ function useIngs(ings,sets){Object.entries(ings).forEach(([k,q])=>{state.pantry[
 function cookMenu(t){return Object.entries(RECIPES).map(([cat,c])=>({n:cat,i:c.i,menu:()=>{const eaters=famHome().filter(x=>stg(x)>=1).length||1;return[`Serves everyone at home (${eaters}) · ✅ = you have the ingredients`].concat(c.r.map(([n,min,mins,hung,ings])=>{const base=4+min*2;
  const mk=(extra,useI)=>{const sets=setsNeeded(eaters,extra);const price=base*(eaters+(extra?3:0));return{n:(extra?'Cook extra & save leftovers':'Cook & serve now')+(useI?' — use my ingredients':' — pay for ingredients'),i:extra?'🥡':useI?'🧺':'💵',mins:mins+(extra?10:0),cost:useI?0:price,sub:useI?(hasIngs(ings,sets)?`Uses ${Object.entries(ings).map(([k,q])=>ING[k][1]+(q*sets>1?'×'+q*sets:'')).join(' ')}`:'Missing some ingredients — shop at the grocery store'):`Don't have them? Pay ${fmt$(price)} and cook it anyway`,req:()=>active().skills.cooking>=min&&(!extra||hasType('fridge'))&&(!useI||hasIngs(ings,sets)),why:useI&&!hasIngs(ings,sets)?'Missing ingredients':extra&&!hasType('fridge')?'Needs a fridge':`Needs Cooking level ${min}`,skills:{cooking:.4+min*.06},
   after:s=>{if(useI){if(!hasIngs(ings,sets))return `${s.name} ran out of ingredients for ${n}`;useIngs(ings,sets)}const q=Math.floor(s.skills.cooking)+t*2;const burn=Math.random()<Math.max(0,.3-(s.skills.cooking-min)*.12);if(burn&&Math.random()<.3)makeSick(s,'food');if(burn&&Math.random()<.15)kitchenFire();const gain=burn?Math.round(hung*.4):hung+q*2;famHome().filter(x=>stg(x)>=1).forEach(x=>applyNeeds(x,{hunger:gain,fun:burn?-5:4}));if(extra&&!burn)addLeftovers(n,3,gain);
-   return burn?`🔥 ${s.name} burnt the ${n}... it's edible-ish`:`${s.name} cooked ${n} ${q>=8?'— absolutely delicious! 🤩':'— yum!'}${extra?' Leftovers are in the fridge 🥡':''}`}}};
+   return burn?`🔥 ${s.name} burnt the ${n}... it's edible-ish`:`${s.name} cooked ${n} ${q>=8?'— absolutely delicious! 🤩':'— yum!'}${extra?' Leftovers are in the fridge 🥡 (Actions → Self → Leftovers)':''}`}}};
  const have=hasIngs(ings,setsNeeded(eaters,false));
  return{n:(have?'✅ ':'')+n,i:c.i,sub:`+${hung} 🍔 · ${mins}m${min?` · Cooking ${min}+`:''}`,req:()=>active().skills.cooking>=min,why:`Needs Cooking level ${min}`,menu:()=>[el('div',{class:'card mut',style:'font-size:13px;white-space:pre-line'},`Ingredients for ${eaters} ${eaters>1?'people':'person'}:\n${ingText(ings,setsNeeded(eaters,false))}`),mk(false,true),mk(false,false),mk(true,true),mk(true,false)]}}))}}))}
 function ingBuyEntry(k){const[n,i,p]=ING[k];return{icon:i,label:n,sub:`You have ${state.pantry[k]||0}`,right:fmt$(p),onClick:()=>{if(state.money<p){toast('Not enough money 💸');return}state.money-=p;state.pantry[k]=(state.pantry[k]||0)+1;toast(`${i} +1 ${n}`);save();refreshSheet();updateHeader()}}}
@@ -1293,7 +1293,7 @@ function talkEntry(pid,cat,[n,fd,minF,rd,minR,special]){const a=active(),p=findP
  return{icon:c.i,label:n,sub:c.mean?'😠 Lowers friendship':c.risky?`⚠️ Risky — ${r.f>=40?'you know each other well, probably okay':'could offend them'}`:locked?`🔒 Needs ${r.f<minF?`friendship ${minF}+`:`romance ${minR}+`}`:'✅ Goes well',disabled:locked,onClick:()=>doTalk(pid,cat,n,fd,minF,rd||0,minR||0,special)}}
 
 /* ============ home banners ============ */
-function homeBanners(){if(isHotel())return[];const out=[];const d=dayNum();const sh=state.shutoff||{};const warn=(t,c)=>el('div',{class:'card',style:`background:var(--${c||'pr'});color:var(--${c?c+'i':'pri'});font-weight:800`},t);
+function homeBanners(){if(isHotel())return[];const out=[];if((state.fridge||[]).length)out.push(el('div',{class:'card',style:'cursor:pointer',onclick:()=>pushMenu('Leftovers',()=>leftoverActs())},el('div',{style:'font-weight:900'},'🥡 Leftovers in the fridge'),el('div',{class:'mut'},state.fridge.map(f=>`${f.name} ×${f.serv}`).join(' · ')+' — tap to eat')));const d=dayNum();const sh=state.shutoff||{};const warn=(t,c)=>el('div',{class:'card',style:`background:var(--${c||'pr'});color:var(--${c?c+'i':'pri'});font-weight:800`},t);
  if(sh.electric)out.push(warn('🕯️ The power is out — no TV, stove, fridge or computer. Pay the electric bill (More → Bills).'));
  if(sh.water)out.push(warn('🚱 The water is off — no shower, toilet or sink. Pay the water bill (More → Bills).'));
  if(sh.internet)out.push(warn('📵 The internet is off — no computer. Pay the internet bill (More → Bills).'));
@@ -1353,6 +1353,7 @@ function treeMenu(rootK){return()=>{refreshTree();const T=state.tree||{};if(!roo
   ...row('Children',kids),...row('Grandchildren',gk),...row('Great-grandchildren',ggk),
   {icon:'🎯',label:`Center on ${active().name}`,onClick:()=>{sheetStack.pop();pushMenu('Family tree',treeMenu(tkey(active().id)))}}]}}
 
+function leftoverEntries(s){if(isHotel()||!atHouse(s)||!(state.fridge||[]).length)return[];const n=state.fridge.reduce((a,f)=>a+f.serv,0);return[{icon:'🥡',label:`Leftovers (${n} serving${n>1?'s':''})`,sub:state.fridge.map(f=>f.name).join(', '),right:'›',onClick:()=>pushMenu('Leftovers',()=>leftoverActs())}]}
 /* ============ rendering ============ */
 function render(){if(QUIET){needRender=true;return}const y=window.scrollY;const app=$('#app');app.innerHTML='';
  if(state&&state.gameOver){app.append(renderGameOver());return}
